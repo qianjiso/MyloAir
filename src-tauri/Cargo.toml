@@ -1,0 +1,47 @@
+[package]
+name = "myloair"
+version = "1.0.0"
+description = "一个安全的跨平台密码管理应用"
+authors = ["qianjs"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "myloair_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-store = "2"
+
+# 加密相关
+aes = "0.8"
+cbc = "0.1"
+hex = "0.4"
+base64 = "0.22"
+rand = "0.8"
+sha2 = "0.10"
+
+# 数据库
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# 异步运行时
+tokio = { version = "1", features = ["sync", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
+

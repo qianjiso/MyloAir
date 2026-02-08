@@ -6,6 +6,7 @@ export interface PasswordItem {
   url?: string | null;
   notes?: string | null;
   group_id?: number | null;
+  groupName?: string | null;  // Tauri 自动转换为 camelCase
   created_at?: string;
   updated_at?: string;
 }

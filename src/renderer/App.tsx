@@ -65,7 +65,7 @@ const App: React.FC = () => {
     setGroupTree,
   } = useGroups();
   const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>();
-  
+
   const [modalVisible, setModalVisible] = useState(false);
   const [groupModalVisible, setGroupModalVisible] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -96,7 +96,7 @@ const App: React.FC = () => {
   const [globalSearchActiveTab, setGlobalSearchActiveTab] = useState<'pw' | 'nt'>('pw');
   const [selectedPwIndex, setSelectedPwIndex] = useState(0);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState(0);
-  
+
   const [editingPassword, setEditingPassword] = useState<Password | null>(null);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [generatorVisible, setGeneratorVisible] = useState(false);
@@ -251,7 +251,7 @@ const App: React.FC = () => {
     settingsVisibleRef.current = settingsVisible;
   }, [settingsVisible, locked, resetAutoLockTimer]);
 
-  
+
 
   const handleAdd = useCallback(() => {
     setEditingPassword(selectedGroupId ? ({ group_id: selectedGroupId } as any) : null);
@@ -369,7 +369,7 @@ const App: React.FC = () => {
     }
   };
 
-  
+
 
   const handleSubmitGroup = async (values: any) => {
     try {
@@ -579,336 +579,342 @@ const App: React.FC = () => {
 
   return (
     <>
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header className="header">
-        <div className="app-toolbar">
-          <div className="toolbar-left">
-            <div className="logo"><KeyOutlined /> Mylo</div>
-            <Segmented
-              value={currentModule}
-              onChange={(v) => setCurrentModule(v as any)}
-              options={[
-                { label: '密码', value: 'password' },
-                { label: '便笺', value: 'notes' }
-              ]}
-            />
-          </div>
-          <div className="toolbar-center">
-            <Input.Search 
-              allowClear 
-              placeholder={currentModule === 'password' ? '搜索密码：标题/用户名/URL' : '搜索便笺标题'} 
-              className="header-search"
-              onSearch={async (value) => {
-                try {
-                  if (!value || value.trim() === '') { return; }
-                  setSearchQuery(value);
-                  const [pw, nt] = await Promise.all([
-                    window.electronAPI.searchPasswords(value),
-                    window.electronAPI.searchNotesTitle(value)
-                  ]);
-                  setGlobalSearchPasswords(pw || []);
-                  setGlobalSearchNotes(nt || []);
-                  setSelectedPwIndex(0);
-                  setSelectedNoteIndex(0);
-                  setGlobalSearchActiveTab(currentModule === 'password' ? 'pw' : 'nt');
-                  setGlobalSearchVisible(true);
-                } catch { message.error('搜索失败'); }
-              }}
-            />
-          </div>
-          <div className="toolbar-right header-actions">
-            <Button icon={<DownloadOutlined />} onClick={() => setImportExportVisible(true)}>导入导出</Button>
-            <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>设置</Button>
-          </div>
-        </div>
-      </Header>
-      <Layout>
-        <Sider width={250} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
-          <div style={{ padding: '16px' }}>
-            <Button icon={<FolderAddOutlined />} onClick={currentModule === 'password' ? handleAddGroup : handleAddNoteGroup} style={{ width: '100%', marginBottom: '16px' }}>新建分组</Button>
-            <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold', color: '#666' }}>分组列表</div>
-            {currentModule === 'password' ? (
-              <GroupTree
-                groups={groups}
-                groupTree={groupTree}
-                selectedGroupId={selectedGroupId}
-                expandedKeys={expandedKeys}
-                onExpanded={(keys) => setExpandedKeys(keys as string[])}
-                onSelect={handleGroupSelect}
-                setGroupTree={(tree) => setGroupTree(tree)}
-                onEditGroup={handleEditGroup}
-                onDeleteGroup={handleDeleteGroup}
-                treeKey={treeKey}
+      <Layout style={{ minHeight: '100vh' }}>
+        <Header className="header">
+          <div className="app-toolbar">
+            <div className="toolbar-left">
+              <div className="logo"><KeyOutlined /> Mylo</div>
+              <Segmented
+                value={currentModule}
+                onChange={(v) => setCurrentModule(v as any)}
+                options={[
+                  { label: '密码', value: 'password' },
+                  { label: '便笺', value: 'notes' }
+                ]}
               />
-            ) : (
-              <NoteGroupTree
-                groups={noteGroups as any}
-                groupTree={noteGroupTree as any}
-                selectedGroupId={selectedNoteGroupId}
-                onSelect={handleNoteGroupSelect}
-                setGroupTree={(tree) => setNoteGroupTree(tree)}
-                setGroups={(list) => setNoteGroups(list)}
-                onEditGroup={handleEditNoteGroup}
-                onDeleteGroup={handleDeleteNoteGroup}
+            </div>
+            <div className="toolbar-center">
+              <Input.Search
+                allowClear
+                placeholder={currentModule === 'password' ? '搜索密码：标题/用户名/URL' : '搜索便笺标题'}
+                className="header-search"
+                onSearch={async (value) => {
+                  try {
+                    if (!value || value.trim() === '') { return; }
+                    setSearchQuery(value);
+                    const [pw, nt] = await Promise.all([
+                      window.electronAPI.searchPasswords(value),
+                      window.electronAPI.searchNotesTitle(value)
+                    ]);
+                    console.log('🔍 搜索结果 - 密码:', pw);
+                    console.log('🔍 第一条密码数据:', pw && pw[0]);
+                    setGlobalSearchPasswords(pw || []);
+                    setGlobalSearchNotes(nt || []);
+                    setSelectedPwIndex(0);
+                    setSelectedNoteIndex(0);
+                    setGlobalSearchActiveTab(currentModule === 'password' ? 'pw' : 'nt');
+                    setGlobalSearchVisible(true);
+                  } catch { message.error('搜索失败'); }
+                }}
               />
-            )}
+            </div>
+            <div className="toolbar-right header-actions">
+              <Button icon={<DownloadOutlined />} onClick={() => setImportExportVisible(true)}>导入导出</Button>
+              <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>设置</Button>
+            </div>
           </div>
-        </Sider>
-        
-        <Layout style={{ padding: '24px' }}>
-          <Content style={{ background: '#fff', padding: '22px', borderRadius: '8px' }}>
-            {currentModule === 'password' ? (
-              <>
-                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                    {searchQuery ? '搜索结果' : selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : '最新记录'}
-                  </h2>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>添加密码</Button>
-                </div>
-                <Table 
-                  columns={columns} 
-                  dataSource={passwords} 
-                  rowKey="id" 
-                  loading={loading} 
-                  tableLayout="fixed"
-                  scroll={{ x: 'max-content' }}
-                  pagination={{ total: passwords.length, pageSize: 10, showSizeChanger: true, showQuickJumper: true, showTotal: (total) => `共 ${total} 条记录` }} 
+        </Header>
+        <Layout>
+          <Sider width={250} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
+            <div style={{ padding: '16px' }}>
+              <Button icon={<FolderAddOutlined />} onClick={currentModule === 'password' ? handleAddGroup : handleAddNoteGroup} style={{ width: '100%', marginBottom: '16px' }}>新建分组</Button>
+              <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold', color: '#666' }}>分组列表</div>
+              {currentModule === 'password' ? (
+                <GroupTree
+                  groups={groups}
+                  groupTree={groupTree}
+                  selectedGroupId={selectedGroupId}
+                  expandedKeys={expandedKeys}
+                  onExpanded={(keys) => setExpandedKeys(keys as string[])}
+                  onSelect={handleGroupSelect}
+                  setGroupTree={(tree) => setGroupTree(tree)}
+                  onEditGroup={handleEditGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  treeKey={treeKey}
                 />
-              </>
-            ) : (
-              <>
-                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                    {selectedNoteGroupId ? noteGroups.find(g => g.id === selectedNoteGroupId)?.name || '便笺' : '最新便笺'}
-                  </h2>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setNoteCreateSignal(s => s + 1)}>添加便笺</Button>
-                </div>
-                <React.Suspense fallback={<div>正在加载便笺模块...</div>}>
-                  <NoteManager
-                    onClose={() => {}}
-                    selectedGroupId={selectedNoteGroupId}
-                    externalGroups={noteGroups as any}
-                    hideTopFilter
-                    createSignal={noteCreateSignal}
-                    openNoteId={noteOpenId}
-                    openSignal={noteOpenSignal}
-                    createTemplate={undefined}
-                    templateSignal={0}
+              ) : (
+                <NoteGroupTree
+                  groups={noteGroups as any}
+                  groupTree={noteGroupTree as any}
+                  selectedGroupId={selectedNoteGroupId}
+                  onSelect={handleNoteGroupSelect}
+                  setGroupTree={(tree) => setNoteGroupTree(tree)}
+                  setGroups={(list) => setNoteGroups(list)}
+                  onEditGroup={handleEditNoteGroup}
+                  onDeleteGroup={handleDeleteNoteGroup}
+                />
+              )}
+            </div>
+          </Sider>
+
+          <Layout style={{ padding: '24px' }}>
+            <Content style={{ background: '#fff', padding: '22px', borderRadius: '8px' }}>
+              {currentModule === 'password' ? (
+                <>
+                  <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
+                      {searchQuery ? '搜索结果' : selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : '最新记录'}
+                    </h2>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>添加密码</Button>
+                  </div>
+                  <Table
+                    columns={columns}
+                    dataSource={passwords}
+                    rowKey="id"
+                    loading={loading}
+                    tableLayout="fixed"
+                    scroll={{ x: 'max-content' }}
+                    pagination={{ total: passwords.length, pageSize: 10, showSizeChanger: true, showQuickJumper: true, showTotal: (total) => `共 ${total} 条记录` }}
                   />
-                </React.Suspense>
-              </>
-            )}
-          </Content>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
+                      {selectedNoteGroupId ? noteGroups.find(g => g.id === selectedNoteGroupId)?.name || '便笺' : '最新便笺'}
+                    </h2>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setNoteCreateSignal(s => s + 1)}>添加便笺</Button>
+                  </div>
+                  <React.Suspense fallback={<div>正在加载便笺模块...</div>}>
+                    <NoteManager
+                      onClose={() => { }}
+                      selectedGroupId={selectedNoteGroupId}
+                      externalGroups={noteGroups as any}
+                      hideTopFilter
+                      createSignal={noteCreateSignal}
+                      openNoteId={noteOpenId}
+                      openSignal={noteOpenSignal}
+                      createTemplate={undefined}
+                      templateSignal={0}
+                    />
+                  </React.Suspense>
+                </>
+              )}
+            </Content>
+          </Layout>
         </Layout>
-       </Layout>
 
-      <PasswordDetailModal
-        visible={modalVisible}
-        password={editingPassword}
-        groups={groups}
-        mode={passwordDetailMode}
-        onEdit={handleEdit}
-        onClose={() => setModalVisible(false)}
-        onSave={handleSubmit}
-        onDelete={handleDelete}
-      />
+        <PasswordDetailModal
+          visible={modalVisible}
+          password={editingPassword}
+          groups={groups}
+          mode={passwordDetailMode}
+          onEdit={handleEdit}
+          onClose={() => setModalVisible(false)}
+          onSave={handleSubmit}
+          onDelete={handleDelete}
+        />
 
-      <Modal
-        title={editingGroup ? '编辑分组' : '新建分组'}
-        open={groupModalVisible}
-        onCancel={() => setGroupModalVisible(false)}
-        footer={null}
-      >
-        <Form
-          form={groupForm}
-          layout="vertical"
-          onFinish={handleSubmitGroup}
+        <Modal
+          title={editingGroup ? '编辑分组' : '新建分组'}
+          open={groupModalVisible}
+          onCancel={() => setGroupModalVisible(false)}
+          footer={null}
         >
-          <Form.Item
-            name="name"
-            label="分组名称"
-            rules={[{ required: true, message: '请输入分组名称' }]}
+          <Form
+            form={groupForm}
+            layout="vertical"
+            onFinish={handleSubmitGroup}
           >
-            <Input placeholder="分组名称" />
-          </Form.Item>
-          
-          <Form.Item
-            name="parent_id"
-            label="父级分组"
-          >
-            <Select placeholder="选择父级分组" allowClear>
-              {groups.filter(g => !editingGroup || g.id !== editingGroup.id).map(group => (
-                <Option key={group.id} value={group.id}>
-                  {group.icon === 'folder' ? <FolderOutlined /> : null} {group.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="color"
-            label="颜色"
-            initialValue="blue"
-          >
-            <Select>
-              <Option value="blue">蓝色</Option>
-              <Option value="green">绿色</Option>
-              <Option value="red">红色</Option>
-              <Option value="orange">橙色</Option>
-              <Option value="purple">紫色</Option>
-              <Option value="cyan">青色</Option>
-              <Option value="magenta">洋红色</Option>
-              <Option value="yellow">黄色</Option>
-              <Option value="pink">粉色</Option>
-              <Option value="geekblue">极客蓝</Option>
-            </Select>
-          </Form.Item>
+            <Form.Item
+              name="name"
+              label="分组名称"
+              rules={[{ required: true, message: '请输入分组名称' }]}
+            >
+              <Input placeholder="分组名称" />
+            </Form.Item>
 
-          <Form.Item
-            name="sort"
-            label="排序"
-            tooltip="数字越小越靠前"
-          >
-            <Input type="number" placeholder="请输入排序数字" />
-          </Form.Item>
-          
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {editingGroup ? '更新' : '添加'}
-              </Button>
-              <Button onClick={() => setGroupModalVisible(false)}>
-                取消
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+            <Form.Item
+              name="parent_id"
+              label="父级分组"
+            >
+              <Select placeholder="选择父级分组" allowClear>
+                {groups.filter(g => !editingGroup || g.id !== editingGroup.id).map(group => (
+                  <Option key={group.id} value={group.id}>
+                    {group.icon === 'folder' ? <FolderOutlined /> : null} {group.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
 
-      <Modal
-        title="密码历史"
-        open={historyModalVisible}
-        onCancel={() => setHistoryModalVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setHistoryModalVisible(false)}>
-            关闭
-          </Button>
-        ]}
-        width={800}
-      >
-        <Table
-          columns={historyColumns}
-          dataSource={passwordHistory}
-          rowKey="id"
-          pagination={false}
-          locale={{ emptyText: '暂无历史记录' }}
-        />
-      </Modal>
+            <Form.Item
+              name="color"
+              label="颜色"
+              initialValue="blue"
+            >
+              <Select>
+                <Option value="blue">蓝色</Option>
+                <Option value="green">绿色</Option>
+                <Option value="red">红色</Option>
+                <Option value="orange">橙色</Option>
+                <Option value="purple">紫色</Option>
+                <Option value="cyan">青色</Option>
+                <Option value="magenta">洋红色</Option>
+                <Option value="yellow">黄色</Option>
+                <Option value="pink">粉色</Option>
+                <Option value="geekblue">极客蓝</Option>
+              </Select>
+            </Form.Item>
 
-      <React.Suspense fallback={null}>
-        <PasswordGenerator
-          visible={generatorVisible}
-          onClose={() => setGeneratorVisible(false)}
-          onGenerate={handleGeneratePassword}
-        />
-      </React.Suspense>
+            <Form.Item
+              name="sort"
+              label="排序"
+              tooltip="数字越小越靠前"
+            >
+              <Input type="number" placeholder="请输入排序数字" />
+            </Form.Item>
 
-      <Modal
-        title="用户设置"
-        open={settingsVisible}
-        onCancel={() => setSettingsVisible(false)}
-        footer={null}
-        width={1000}
-        style={{ top: 32 }}
-        destroyOnHidden
-      >
-        <React.Suspense fallback={<div>正在加载设置...</div>}>
-          <UserSettings onClose={() => setSettingsVisible(false)} />
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  {editingGroup ? '更新' : '添加'}
+                </Button>
+                <Button onClick={() => setGroupModalVisible(false)}>
+                  取消
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="密码历史"
+          open={historyModalVisible}
+          onCancel={() => setHistoryModalVisible(false)}
+          footer={[
+            <Button key="close" onClick={() => setHistoryModalVisible(false)}>
+              关闭
+            </Button>
+          ]}
+          width={800}
+        >
+          <Table
+            columns={historyColumns}
+            dataSource={passwordHistory}
+            rowKey="id"
+            pagination={false}
+            locale={{ emptyText: '暂无历史记录' }}
+          />
+        </Modal>
+
+        <React.Suspense fallback={null}>
+          <PasswordGenerator
+            visible={generatorVisible}
+            onClose={() => setGeneratorVisible(false)}
+            onGenerate={handleGeneratePassword}
+          />
         </React.Suspense>
-      </Modal>
 
-      <React.Suspense fallback={null}>
-        <ImportExportModal
-          visible={importExportVisible}
-          onClose={() => setImportExportVisible(false)}
-        />
-      </React.Suspense>
+        <Modal
+          title="用户设置"
+          open={settingsVisible}
+          onCancel={() => setSettingsVisible(false)}
+          footer={null}
+          width={1000}
+          style={{ top: 32 }}
+          destroyOnHidden
+        >
+          <React.Suspense fallback={<div>正在加载设置...</div>}>
+            <UserSettings onClose={() => setSettingsVisible(false)} />
+          </React.Suspense>
+        </Modal>
 
-      
-      <Modal title={editingNoteGroup ? '编辑便笺分组' : '新建便笺分组'} open={noteGroupModalVisible} onCancel={() => setNoteGroupModalVisible(false)} footer={null}>
-        <Form form={noteGroupForm} layout="vertical" onFinish={handleSubmitNoteGroup}>
-          <Form.Item name="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]}>
-            <Input placeholder="分组名称" />
-          </Form.Item>
-          <Form.Item name="parent_id" label="父级分组">
-            <Select placeholder="选择父级分组" allowClear>
-              {(noteGroups || []).filter((g) => !editingNoteGroup || g.id !== editingNoteGroup.id).map(group => (
-                <Option key={group.id} value={group.id as number}>{group.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="color" label="颜色" initialValue="blue">
-            <Select>
-              <Option value="blue">蓝色</Option>
-              <Option value="green">绿色</Option>
-              <Option value="red">红色</Option>
-              <Option value="orange">橙色</Option>
-              <Option value="purple">紫色</Option>
-              <Option value="cyan">青色</Option>
-              <Option value="magenta">洋红色</Option>
-              <Option value="yellow">黄色</Option>
-              <Option value="pink">粉色</Option>
-              <Option value="geekblue">极客蓝</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">{editingNoteGroup ? '更新' : '添加'}</Button>
-              <Button onClick={() => setNoteGroupModalVisible(false)}>取消</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        <React.Suspense fallback={null}>
+          <ImportExportModal
+            visible={importExportVisible}
+            onClose={() => setImportExportVisible(false)}
+          />
+        </React.Suspense>
 
-      
 
-      <Modal title="全局搜索" open={globalSearchVisible} onCancel={() => setGlobalSearchVisible(false)} footer={null} width={900}>
-        <Tabs activeKey={globalSearchActiveTab} onChange={(k) => setGlobalSearchActiveTab(k as any)} items={[
-          { key: 'pw', label: `密码（${globalSearchPasswords.length}）`, children: (
-            <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchPasswords} columns={[
-              { title: '标题', dataIndex: 'title' },
-              { title: '用户名', dataIndex: 'username' },
-              { title: '分组', dataIndex: 'group_id', render: (gid: number) => { const g = groups.find(x => x.id === gid); return g ? g.name : '未分组'; } },
-              { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('password'); handleView(row); setGlobalSearchVisible(false); }}>打开</Button>) }
-            ]} />
-          ) },
-          { key: 'nt', label: `便笺（${globalSearchNotes.length}）`, children: (
-            <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchNotes} columns={[
-              { title: '标题', dataIndex: 'title' },
-              { title: '分组', dataIndex: 'group_id', render: (gid: number) => { const g = noteGroups.find(x => x.id === gid); return g ? g.name : '未分组'; } },
-              { title: '更新时间', dataIndex: 'updated_at' },
-              { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('notes'); setGlobalSearchVisible(false); setNoteOpenId(row.id); setNoteOpenSignal(s => s + 1); }}>打开</Button>) }
-            ]} />
-          ) }
-        ]} />
-      </Modal>
+        <Modal title={editingNoteGroup ? '编辑便笺分组' : '新建便笺分组'} open={noteGroupModalVisible} onCancel={() => setNoteGroupModalVisible(false)} footer={null}>
+          <Form form={noteGroupForm} layout="vertical" onFinish={handleSubmitNoteGroup}>
+            <Form.Item name="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]}>
+              <Input placeholder="分组名称" />
+            </Form.Item>
+            <Form.Item name="parent_id" label="父级分组">
+              <Select placeholder="选择父级分组" allowClear>
+                {(noteGroups || []).filter((g) => !editingNoteGroup || g.id !== editingNoteGroup.id).map(group => (
+                  <Option key={group.id} value={group.id as number}>{group.name}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="color" label="颜色" initialValue="blue">
+              <Select>
+                <Option value="blue">蓝色</Option>
+                <Option value="green">绿色</Option>
+                <Option value="red">红色</Option>
+                <Option value="orange">橙色</Option>
+                <Option value="purple">紫色</Option>
+                <Option value="cyan">青色</Option>
+                <Option value="magenta">洋红色</Option>
+                <Option value="yellow">黄色</Option>
+                <Option value="pink">粉色</Option>
+                <Option value="geekblue">极客蓝</Option>
+              </Select>
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit">{editingNoteGroup ? '更新' : '添加'}</Button>
+                <Button onClick={() => setNoteGroupModalVisible(false)}>取消</Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Modal>
 
-      <Modal title="命令面板" open={cmdPaletteVisible} onCancel={() => setCmdPaletteVisible(false)} footer={null}>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Button onClick={() => { setCurrentModule('password'); setCmdPaletteVisible(false); }}>切换到密码模块</Button>
-          <Button onClick={() => { setCurrentModule('notes'); setCmdPaletteVisible(false); }}>切换到便笺模块</Button>
-          <Button onClick={() => { if (currentModule === 'password') { handleAdd(); } else { setNoteCreateSignal((s) => s + 1); } setCmdPaletteVisible(false); }}>快速新建当前模块条目</Button>
-        </Space>
-        <div style={{ marginTop: 8, color: '#999' }}>快捷键：⌘1/⌘2 切模块 · ⌘F 搜索 · ⌘N 新建 · ⌘K 打开此面板</div>
-      </Modal>
-    </Layout>
-    <MasterPasswordGate
-      visible={!checkingSecurity && locked}
-      state={securityState}
-      loading={securityLoading}
-      onUnlock={handleUnlock}
-      onSetup={handleSetupMaster}
-    />
+
+
+        <Modal title="全局搜索" open={globalSearchVisible} onCancel={() => setGlobalSearchVisible(false)} footer={null} width={900}>
+          <Tabs activeKey={globalSearchActiveTab} onChange={(k) => setGlobalSearchActiveTab(k as any)} items={[
+            {
+              key: 'pw', label: `密码（${globalSearchPasswords.length}）`, children: (
+                <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchPasswords} columns={[
+                  { title: '标题', dataIndex: 'title' },
+                  { title: '用户名', dataIndex: 'username' },
+                  { title: '分组', dataIndex: 'groupName', render: (name: string) => name || '未分组' },
+                  { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('password'); handleView(row); setGlobalSearchVisible(false); }}>打开</Button>) }
+                ]} />
+              )
+            },
+            {
+              key: 'nt', label: `便笺（${globalSearchNotes.length}）`, children: (
+                <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchNotes} columns={[
+                  { title: '标题', dataIndex: 'title' },
+                  { title: '分组', dataIndex: 'group_id', render: (gid: number) => { const g = noteGroups.find(x => x.id === gid); return g ? g.name : '未分组'; } },
+                  { title: '更新时间', dataIndex: 'updated_at' },
+                  { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('notes'); setGlobalSearchVisible(false); setNoteOpenId(row.id); setNoteOpenSignal(s => s + 1); }}>打开</Button>) }
+                ]} />
+              )
+            }
+          ]} />
+        </Modal>
+
+        <Modal title="命令面板" open={cmdPaletteVisible} onCancel={() => setCmdPaletteVisible(false)} footer={null}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Button onClick={() => { setCurrentModule('password'); setCmdPaletteVisible(false); }}>切换到密码模块</Button>
+            <Button onClick={() => { setCurrentModule('notes'); setCmdPaletteVisible(false); }}>切换到便笺模块</Button>
+            <Button onClick={() => { if (currentModule === 'password') { handleAdd(); } else { setNoteCreateSignal((s) => s + 1); } setCmdPaletteVisible(false); }}>快速新建当前模块条目</Button>
+          </Space>
+          <div style={{ marginTop: 8, color: '#999' }}>快捷键：⌘1/⌘2 切模块 · ⌘F 搜索 · ⌘N 新建 · ⌘K 打开此面板</div>
+        </Modal>
+      </Layout>
+      <MasterPasswordGate
+        visible={!checkingSecurity && locked}
+        state={securityState}
+        loading={securityLoading}
+        onUnlock={handleUnlock}
+        onSetup={handleSetupMaster}
+      />
     </>
   );
 };

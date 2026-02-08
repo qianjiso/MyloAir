@@ -69,6 +69,8 @@ impl DatabaseService {
     pub fn add_password(&self, password: &crate::models::password::Password) -> Result<i64, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         
+        log::info!("Executing INSERT for password: title={}, group_id={:?}", password.title, password.group_id);
+        
         conn.execute(
             "INSERT INTO passwords (title, username, password, url, notes, group_id, favorite, tags, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
             (
@@ -81,9 +83,14 @@ impl DatabaseService {
                 password.favorite.map(|f| if f { 1 } else { 0 }),
                 &password.tags,
             ),
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| {
+            log::error!("SQL INSERT failed: {}", e);
+            e.to_string()
+        })?;
 
-        Ok(conn.last_insert_rowid())
+        let id = conn.last_insert_rowid();
+        log::info!("Password inserted with id: {}", id);
+        Ok(id)
     }
 
     /// 更新密码
@@ -140,6 +147,49 @@ impl DatabaseService {
 
         Ok(passwords)
     }
+
+    /// 获取密码历史记录
+    pub fn get_password_history(&self, password_id: i64) -> Result<Vec<crate::models::password::PasswordHistory>, String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        
+        let mut stmt = conn.prepare(
+            "SELECT id, password_id, old_password, changed_at, change_reason 
+             FROM password_history 
+             WHERE password_id = ?1 
+             ORDER BY changed_at DESC"
+        ).map_err(|e| e.to_string())?;
+        
+        let history_iter = stmt.query_map([password_id], |row| {
+            Ok(crate::models::password::PasswordHistory {
+                id: row.get(0)?,
+                password_id: row.get(1)?,
+                old_password: row.get(2)?,
+                changed_at: row.get(3)?,
+                change_reason: row.get(4)?,
+            })
+        }).map_err(|e| e.to_string())?;
+        
+        let mut results = Vec::new();
+        for item in history_iter {
+            results.push(item.map_err(|e| e.to_string())?);
+        }
+        
+        Ok(results)
+    }
+
+    /// 添加密码历史记录
+    pub fn add_password_history(&self, password_id: i64, old_password: &str, change_reason: Option<&str>) -> Result<(), String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        
+        conn.execute(
+            "INSERT INTO password_history (password_id, old_password, changed_at, change_reason) 
+             VALUES (?1, ?2, datetime('now'), ?3)",
+            (password_id, old_password, change_reason),
+        ).map_err(|e| e.to_string())?;
+        
+        Ok(())
+    }
+
 
     /// 检查是否已设置主密码
     pub fn has_master_password(&self) -> Result<bool, String> {

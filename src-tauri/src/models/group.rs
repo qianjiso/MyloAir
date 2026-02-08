@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct Group {
     pub id: Option<i64>,
     pub name: String,
+    #[serde(rename = "parent_id")]
     pub parent_id: Option<i64>,
     pub icon: Option<String>,
     pub color: Option<String>,
@@ -22,6 +23,7 @@ pub struct Group {
 pub struct GroupWithChildren {
     pub id: i64,
     pub name: String,
+    #[serde(rename = "parent_id")]
     pub parent_id: Option<i64>,
     pub icon: Option<String>,
     pub color: Option<String>,

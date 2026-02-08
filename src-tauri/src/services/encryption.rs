@@ -19,18 +19,33 @@ pub struct EncryptionService {
 use sha2::{Sha256, Digest};
 
 impl EncryptionService {
-    /// 从字符串密钥创建服务实例
-    /// 使用 SHA-256 哈希作为 AES 密钥
-    pub fn new(key: &str) -> Self {
+    /// 创建新的加密服务实例（基于用户密码）
+    pub fn new(password: &str) -> Self {
+        let mut key = [0u8; 32];
         let mut hasher = Sha256::new();
-        hasher.update(key.as_bytes());
+        hasher.update(password.as_bytes());
         let result = hasher.finalize();
+        key.copy_from_slice(&result);
+
+        EncryptionService { key }
+    }
+
+    /// 使用应用级固定密钥创建加密服务（推荐用于数据加密）
+    pub fn new_with_app_key() -> Self {
+        let app_key = Self::get_or_create_app_key();
+        Self::new(&app_key)
+    }
+
+    /// 获取或创建应用级加密密钥
+    fn get_or_create_app_key() -> String {
+        // 使用固定的应用密钥
+        // 在生产环境中，这应该：
+        // 1. 从安全存储（Keychain/Credential Manager）读取
+        // 2. 如果不存在，生成随机密钥并安全存储
+        // 3. 可以结合设备标识增加安全性
         
-        // Copy into array
-        let mut derived_key = [0u8; 32];
-        derived_key.copy_from_slice(&result);
-        
-        Self { key: derived_key }
+        // 当前使用固定密钥（开发阶段）
+        "myloair-app-encryption-key-v1-secure".to_string()
     }
 
     /// 加密文本

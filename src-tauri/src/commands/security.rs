@@ -65,10 +65,10 @@ pub async fn security_set_master_password(
     let hash = hash_password(&password);
     state.db.set_master_password(&hash, hint.as_deref()).map_err(|e| e.to_string())?;
     
-    // Auto login
+    // 自动解锁 UI（不再创建 session）
     {
-        let mut session = state.session.lock().map_err(|_| "Failed to lock session".to_string())?;
-        *session = Some(EncryptionService::new(&password));
+        let mut ui_locked = state.ui_locked.lock().map_err(|_| "Failed to lock state".to_string())?;
+        *ui_locked = false;
     }
     
     // Return new state
@@ -87,14 +87,15 @@ pub async fn security_verify_master_password(
     if let Some(stored_hash) = db_hash_opt {
         let input_hash = hash_password(&password);
         if stored_hash == input_hash {
-             {
-                 let mut session = state.session.lock().map_err(|_| "Failed to lock session".to_string())?;
-                 *session = Some(EncryptionService::new(&password));
-             }
-             let current_state = security_get_state(state).await?;
-             Ok(json!({ "success": true, "state": current_state }))
+            // 只更新 UI 锁定状态，不再创建 session
+            {
+                let mut ui_locked = state.ui_locked.lock().map_err(|_| "Failed to lock state".to_string())?;
+                *ui_locked = false;
+            }
+            let current_state = security_get_state(state).await?;
+            Ok(json!({ "success": true, "state": current_state }))
         } else {
-             Ok(json!({ "success": false, "error": "密码错误" }))
+            Ok(json!({ "success": false, "error": "密码错误" }))
         }
     } else {
         Ok(json!({ "success": false, "error": "尚未设置主密码" }))
@@ -133,3 +134,18 @@ pub async fn security_set_require_master_password(
     Ok(json!({ "success": false, "error": "尚未实现" }))
 }
 
+
+/// 锁定 UI
+#[tauri::command]
+pub async fn security_lock_ui(state: State<'_, AppState>) -> Result<Value, String> {
+    let mut ui_locked = state.ui_locked.lock().map_err(|_| "Failed to lock state".to_string())?;
+    *ui_locked = true;
+    Ok(json!({ "success": true }))
+}
+
+/// 获取 UI 锁定状态
+#[tauri::command]
+pub async fn security_get_ui_lock_state(state: State<'_, AppState>) -> Result<Value, String> {
+    let ui_locked = state.ui_locked.lock().map_err(|_| "Failed to lock state".to_string())?;
+    Ok(json!({ "locked": *ui_locked }))
+}

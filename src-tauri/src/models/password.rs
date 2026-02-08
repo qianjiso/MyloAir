@@ -12,6 +12,7 @@ pub struct Password {
     pub password: Option<String>,
     pub url: Option<String>,
     pub notes: Option<String>,
+    #[serde(rename = "group_id")]
     pub group_id: Option<i64>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,

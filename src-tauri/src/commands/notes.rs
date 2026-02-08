@@ -17,28 +17,22 @@ pub struct SecureRecordGroupWithChildren {
     pub children: Vec<SecureRecordGroupWithChildren>,
 }
 
-// Helper: Encrypt/Decrypt logic
+/// 辅助函数：解密笔记内容
 fn decrypt_note_content(state: &State<'_, AppState>, note: &mut SecureRecord) {
-    if let Ok(session) = state.session.lock() {
-        if let Some(service) = session.as_ref() {
-            if let Some(cipher) = &note.content {
-                if !cipher.is_empty() {
-                    if let Ok(plain) = service.decrypt(cipher) {
-                        note.content = Some(plain);
-                    }
-                }
+    if let Some(cipher) = &note.content {
+        if !cipher.is_empty() {
+            if let Ok(plain) = state.encryption.decrypt(cipher) {
+                note.content = Some(plain);
             }
         }
     }
 }
 
+/// 辅助函数：加密笔记内容
 fn encrypt_note_content(state: &State<'_, AppState>, note: &mut SecureRecord) -> Result<(), String> {
-    let session = state.session.lock().map_err(|_| "Failed to lock session".to_string())?;
-    let service = session.as_ref().ok_or("Vault is locked".to_string())?;
-    
     if let Some(plain) = &note.content {
         if !plain.is_empty() {
-            let cipher = service.encrypt(plain)?;
+            let cipher = state.encryption.encrypt(plain)?;
             note.content = Some(cipher);
         }
     }

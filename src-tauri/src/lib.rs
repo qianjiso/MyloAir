@@ -17,7 +17,8 @@ use std::sync::Mutex;
 /// 应用共享状态
 pub struct AppState {
     pub db: DatabaseService,
-    pub session: Mutex<Option<EncryptionService>>,
+    pub encryption: EncryptionService,  // 应用级加密服务（始终可用）
+    pub ui_locked: Mutex<bool>,         // UI 锁定状态
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -55,10 +56,15 @@ pub fn run() {
                 )));
             }
 
+            // 初始化应用级加密服务（始终可用，用于数据加密）
+            let encryption_service = EncryptionService::new_with_app_key();
+            log::info!("Encryption service initialized with app-level key");
+
             // 管理应用状态
             app.manage(AppState { 
                 db: db_service, 
-                session: Mutex::new(None) 
+                encryption: encryption_service,
+                ui_locked: Mutex::new(true),  // 默认锁定 UI
             });
 
             // 显示窗口
@@ -76,6 +82,8 @@ pub fn run() {
             commands::passwords::update_password,
             commands::passwords::delete_password,
             commands::passwords::search_passwords,
+            commands::passwords::generate_password,
+            commands::passwords::get_password_history,
             // 分组管理
             commands::groups::get_groups,
             commands::groups::get_group_tree,
@@ -94,6 +102,8 @@ pub fn run() {
             commands::security::security_update_master_password,
             commands::security::security_clear_master_password,
             commands::security::security_set_require_master_password,
+            commands::security::security_lock_ui,
+            commands::security::security_get_ui_lock_state,
             // 笔记管理
             commands::notes::get_note_groups,
             commands::notes::get_note_group_tree,

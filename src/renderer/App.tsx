@@ -577,7 +577,7 @@ const App: React.FC = () => {
     } catch (error: any) {
       message.error(
         error.message ||
-          (editingNoteGroup ? '更新便笺分组失败' : '添加便笺分组失败')
+        (editingNoteGroup ? '更新便笺分组失败' : '添加便笺分组失败')
       );
     }
   };
@@ -883,7 +883,7 @@ const App: React.FC = () => {
                     <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
                       {selectedNoteGroupId
                         ? noteGroups.find((g) => g.id === selectedNoteGroupId)
-                            ?.name || '便笺'
+                          ?.name || '便笺'
                         : '最新便笺'}
                     </h2>
                     <Button
@@ -896,7 +896,7 @@ const App: React.FC = () => {
                   </div>
                   <React.Suspense fallback={<div>正在加载便笺模块...</div>}>
                     <NoteManager
-                      onClose={() => {}}
+                      onClose={() => { }}
                       selectedGroupId={selectedNoteGroupId}
                       externalGroups={noteGroups as any}
                       hideTopFilter
@@ -965,10 +965,6 @@ const App: React.FC = () => {
                 <Option value="pink">粉色</Option>
                 <Option value="geekblue">极客蓝</Option>
               </Select>
-            </Form.Item>
-
-            <Form.Item name="sort" label="排序" tooltip="数字越小越靠前">
-              <Input type="number" placeholder="请输入排序数字" />
             </Form.Item>
 
             <Form.Item>

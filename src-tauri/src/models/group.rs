@@ -4,11 +4,9 @@ use serde::{Deserialize, Serialize};
 
 /// 分组
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Group {
     pub id: Option<i64>,
     pub name: String,
-    #[serde(rename = "parent_id")]
     pub parent_id: Option<i64>,
     pub icon: Option<String>,
     pub color: Option<String>,
@@ -19,11 +17,9 @@ pub struct Group {
 
 /// 带子分组的分组树节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GroupWithChildren {
     pub id: i64,
     pub name: String,
-    #[serde(rename = "parent_id")]
     pub parent_id: Option<i64>,
     pub icon: Option<String>,
     pub color: Option<String>,

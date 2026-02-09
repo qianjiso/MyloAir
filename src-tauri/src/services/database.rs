@@ -1,9 +1,9 @@
 //! 数据库服务
-//! 
+//!
 //! 封装 SQLite 数据库操作
 
-use std::path::Path;
 use rusqlite::{Connection, Result};
+use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 /// 数据库服务
@@ -22,9 +22,12 @@ impl DatabaseService {
     // ... (existing methods)
 
     /// 获取所有密码（可选按分组筛选）
-    pub fn get_passwords(&self, group_id: Option<i64>) -> Result<Vec<crate::models::password::Password>, String> {
+    pub fn get_passwords(
+        &self,
+        group_id: Option<i64>,
+    ) -> Result<Vec<crate::models::password::Password>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
+
         let mut stmt = if let Some(_) = group_id {
             conn.prepare("SELECT id, title, username, password, url, notes, group_id, created_at, updated_at, last_used_at, use_count, favorite, tags FROM passwords WHERE group_id = ? ORDER BY title")
                 .map_err(|e| e.to_string())?
@@ -34,9 +37,11 @@ impl DatabaseService {
         };
 
         let password_iter = if let Some(gid) = group_id {
-            stmt.query_map([gid], Self::map_password_row).map_err(|e| e.to_string())?
+            stmt.query_map([gid], Self::map_password_row)
+                .map_err(|e| e.to_string())?
         } else {
-            stmt.query_map([], Self::map_password_row).map_err(|e| e.to_string())?
+            stmt.query_map([], Self::map_password_row)
+                .map_err(|e| e.to_string())?
         };
 
         let mut passwords = Vec::new();
@@ -48,14 +53,18 @@ impl DatabaseService {
     }
 
     /// 获取单个密码
-    pub fn get_password(&self, id: i64) -> Result<Option<crate::models::password::Password>, String> {
+    pub fn get_password(
+        &self,
+        id: i64,
+    ) -> Result<Option<crate::models::password::Password>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
+
         let mut stmt = conn.prepare("SELECT id, title, username, password, url, notes, group_id, created_at, updated_at, last_used_at, use_count, favorite, tags FROM passwords WHERE id = ?")
             .map_err(|e| e.to_string())?;
-        
+
         // 使用 query_map 获取 iterator
-        let mut password_iter = stmt.query_map([id], Self::map_password_row)
+        let mut password_iter = stmt
+            .query_map([id], Self::map_password_row)
             .map_err(|e| e.to_string())?;
 
         if let Some(password) = password_iter.next() {
@@ -66,11 +75,18 @@ impl DatabaseService {
     }
 
     /// 添加密码
-    pub fn add_password(&self, password: &crate::models::password::Password) -> Result<i64, String> {
+    pub fn add_password(
+        &self,
+        password: &crate::models::password::Password,
+    ) -> Result<i64, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
-        log::info!("Executing INSERT for password: title={}, group_id={:?}", password.title, password.group_id);
-        
+
+        log::info!(
+            "Executing INSERT for password: title={}, group_id={:?}",
+            password.title,
+            password.group_id
+        );
+
         conn.execute(
             "INSERT INTO passwords (title, username, password, url, notes, group_id, favorite, tags, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
             (
@@ -94,11 +110,14 @@ impl DatabaseService {
     }
 
     /// 更新密码
-    pub fn update_password(&self, password: &crate::models::password::Password) -> Result<(), String> {
+    pub fn update_password(
+        &self,
+        password: &crate::models::password::Password,
+    ) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
+
         if let Some(id) = password.id {
-             conn.execute(
+            conn.execute(
                 "UPDATE passwords SET title=?1, username=?2, password=?3, url=?4, notes=?5, group_id=?6, favorite=?7, tags=?8, updated_at=datetime('now') WHERE id=?9",
                 (
                     &password.title,
@@ -127,17 +146,21 @@ impl DatabaseService {
     }
 
     /// 搜索密码（模糊匹配标题、用户名、网址、备注）
-    pub fn search_passwords(&self, keyword: &str) -> Result<Vec<crate::models::password::Password>, String> {
+    pub fn search_passwords(
+        &self,
+        keyword: &str,
+    ) -> Result<Vec<crate::models::password::Password>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let pattern = format!("%{}%", keyword);
-        
+
         let mut stmt = conn.prepare(
             "SELECT id, title, username, password, url, notes, group_id, created_at, updated_at, last_used_at, use_count, favorite, tags FROM passwords 
             WHERE title LIKE ?1 OR username LIKE ?1 OR url LIKE ?1 OR notes LIKE ?1 
             ORDER BY title"
         ).map_err(|e| e.to_string())?;
 
-        let password_iter = stmt.query_map([&pattern], Self::map_password_row)
+        let password_iter = stmt
+            .query_map([&pattern], Self::map_password_row)
             .map_err(|e| e.to_string())?;
 
         let mut passwords = Vec::new();
@@ -149,67 +172,82 @@ impl DatabaseService {
     }
 
     /// 获取密码历史记录
-    pub fn get_password_history(&self, password_id: i64) -> Result<Vec<crate::models::password::PasswordHistory>, String> {
+    pub fn get_password_history(
+        &self,
+        password_id: i64,
+    ) -> Result<Vec<crate::models::password::PasswordHistory>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
-        let mut stmt = conn.prepare(
-            "SELECT id, password_id, old_password, changed_at, change_reason 
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, password_id, old_password, changed_at, change_reason 
              FROM password_history 
              WHERE password_id = ?1 
-             ORDER BY changed_at DESC"
-        ).map_err(|e| e.to_string())?;
-        
-        let history_iter = stmt.query_map([password_id], |row| {
-            Ok(crate::models::password::PasswordHistory {
-                id: row.get(0)?,
-                password_id: row.get(1)?,
-                old_password: row.get(2)?,
-                changed_at: row.get(3)?,
-                change_reason: row.get(4)?,
+             ORDER BY changed_at DESC",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let history_iter = stmt
+            .query_map([password_id], |row| {
+                Ok(crate::models::password::PasswordHistory {
+                    id: row.get(0)?,
+                    password_id: row.get(1)?,
+                    old_password: row.get(2)?,
+                    changed_at: row.get(3)?,
+                    change_reason: row.get(4)?,
+                })
             })
-        }).map_err(|e| e.to_string())?;
-        
+            .map_err(|e| e.to_string())?;
+
         let mut results = Vec::new();
         for item in history_iter {
             results.push(item.map_err(|e| e.to_string())?);
         }
-        
+
         Ok(results)
     }
 
     /// 添加密码历史记录
-    pub fn add_password_history(&self, password_id: i64, old_password: &str, change_reason: Option<&str>) -> Result<(), String> {
+    pub fn add_password_history(
+        &self,
+        password_id: i64,
+        old_password: &str,
+        change_reason: Option<&str>,
+    ) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        
+
         conn.execute(
             "INSERT INTO password_history (password_id, old_password, changed_at, change_reason) 
              VALUES (?1, ?2, datetime('now'), ?3)",
             (password_id, old_password, change_reason),
-        ).map_err(|e| e.to_string())?;
-        
+        )
+        .map_err(|e| e.to_string())?;
+
         Ok(())
     }
-
 
     /// 检查是否已设置主密码
     pub fn has_master_password(&self) -> Result<bool, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM master_password WHERE id = 1",
-            [],
-            |row| row.get(0),
-        ).map_err(|e| e.to_string())?;
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM master_password WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
         Ok(count > 0)
     }
 
     /// 获取主密码哈希
     pub fn get_master_password_hash(&self) -> Result<Option<String>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        let mut stmt = conn.prepare("SELECT password_hash FROM master_password WHERE id = 1")
+        let mut stmt = conn
+            .prepare("SELECT password_hash FROM master_password WHERE id = 1")
             .map_err(|e| e.to_string())?;
-        
+
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
-        
+
         if let Some(row) = rows.next().map_err(|e| e.to_string())? {
             let hash: String = row.get(0).map_err(|e| e.to_string())?;
             Ok(Some(hash))
@@ -238,9 +276,11 @@ impl DatabaseService {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM groups ORDER BY sort_order, name")
             .map_err(|e| e.to_string())?;
-        
-        let iter = stmt.query_map([], Self::map_group_row).map_err(|e| e.to_string())?;
-        
+
+        let iter = stmt
+            .query_map([], Self::map_group_row)
+            .map_err(|e| e.to_string())?;
+
         let mut groups = Vec::new();
         for group in iter {
             groups.push(group.map_err(|e| e.to_string())?);
@@ -253,9 +293,11 @@ impl DatabaseService {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM groups WHERE id = ?")
             .map_err(|e| e.to_string())?;
-        
-        let mut iter = stmt.query_map([id], Self::map_group_row).map_err(|e| e.to_string())?;
-        
+
+        let mut iter = stmt
+            .query_map([id], Self::map_group_row)
+            .map_err(|e| e.to_string())?;
+
         if let Some(group) = iter.next() {
             Ok(Some(group.map_err(|e| e.to_string())?))
         } else {
@@ -281,9 +323,19 @@ impl DatabaseService {
 
     /// 更新分组
     pub fn update_group(&self, group: &crate::models::group::Group) -> Result<(), String> {
+        log::info!("[DB::update_group] ========== 开始 ==========");
+        log::info!(
+            "[DB::update_group] 接收到的数据: id={:?}, name={:?}, parent_id={:?}, sort_order={:?}",
+            group.id,
+            group.name,
+            group.parent_id,
+            group.sort_order
+        );
+
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         if let Some(id) = group.id {
-            conn.execute(
+            log::info!("[DB::update_group] 执行 SQL 更新, id={}", id);
+            let result = conn.execute(
                 "UPDATE groups SET name=?1, parent_id=?2, icon=?3, color=?4, sort_order=?5, updated_at=datetime('now') WHERE id=?6",
                 (
                     &group.name,
@@ -294,8 +346,19 @@ impl DatabaseService {
                     id
                 ),
             ).map_err(|e| e.to_string())?;
+
+            log::info!("[DB::update_group] SQL 执行成功, 影响行数: {}", result);
+
+            // 验证更新
+            let updated = self.get_group(id)?;
+            if let Some(g) = updated {
+                log::info!("[DB::update_group] 验证更新结果: id={}, name={:?}, parent_id={:?}, sort_order={:?}", 
+                    g.id.unwrap_or(0), g.name, g.parent_id, g.sort_order);
+            }
+
             Ok(())
         } else {
+            log::error!("[DB::update_group] Group ID is missing");
             Err("Group ID is missing".to_string())
         }
     }
@@ -303,7 +366,8 @@ impl DatabaseService {
     /// 删除分组
     pub fn delete_group(&self, id: i64) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM groups WHERE id = ?", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM groups WHERE id = ?", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -313,21 +377,37 @@ impl DatabaseService {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM secure_record_groups ORDER BY sort_order, name")
             .map_err(|e| e.to_string())?;
-        let iter = stmt.query_map([], Self::map_note_group_row).map_err(|e| e.to_string())?;
+        let iter = stmt
+            .query_map([], Self::map_note_group_row)
+            .map_err(|e| e.to_string())?;
         let mut groups = Vec::new();
-        for group in iter { groups.push(group.map_err(|e| e.to_string())?); }
+        for group in iter {
+            groups.push(group.map_err(|e| e.to_string())?);
+        }
         Ok(groups)
     }
 
-    pub fn get_note_group(&self, id: i64) -> Result<Option<crate::models::note::SecureRecordGroup>, String> {
+    pub fn get_note_group(
+        &self,
+        id: i64,
+    ) -> Result<Option<crate::models::note::SecureRecordGroup>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM secure_record_groups WHERE id = ?")
             .map_err(|e| e.to_string())?;
-        let mut iter = stmt.query_map([id], Self::map_note_group_row).map_err(|e| e.to_string())?;
-        if let Some(group) = iter.next() { Ok(Some(group.map_err(|e| e.to_string())?)) } else { Ok(None) }
+        let mut iter = stmt
+            .query_map([id], Self::map_note_group_row)
+            .map_err(|e| e.to_string())?;
+        if let Some(group) = iter.next() {
+            Ok(Some(group.map_err(|e| e.to_string())?))
+        } else {
+            Ok(None)
+        }
     }
 
-    pub fn add_note_group(&self, group: &crate::models::note::SecureRecordGroup) -> Result<i64, String> {
+    pub fn add_note_group(
+        &self,
+        group: &crate::models::note::SecureRecordGroup,
+    ) -> Result<i64, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         conn.execute(
             "INSERT INTO secure_record_groups (name, parent_id, icon, color, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'), datetime('now'))",
@@ -336,26 +416,51 @@ impl DatabaseService {
         Ok(conn.last_insert_rowid())
     }
 
-    pub fn update_note_group(&self, group: &crate::models::note::SecureRecordGroup) -> Result<(), String> {
+    pub fn update_note_group(
+        &self,
+        group: &crate::models::note::SecureRecordGroup,
+    ) -> Result<(), String> {
+        log::info!("[DB::update_note_group] ========== 开始 ==========");
+        log::info!("[DB::update_note_group] 接收到的数据: id={:?}, name={:?}, parent_id={:?}, sort_order={:?}", 
+            group.id, group.name, group.parent_id, group.sort_order);
+
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         if let Some(id) = group.id {
-            conn.execute(
+            log::info!("[DB::update_note_group] 执行 SQL 更新, id={}", id);
+            let result = conn.execute(
                 "UPDATE secure_record_groups SET name=?1, parent_id=?2, icon=?3, color=?4, sort_order=?5, updated_at=datetime('now') WHERE id=?6",
                 (&group.name, group.parent_id, &group.icon, &group.color, group.sort_order, id),
             ).map_err(|e| e.to_string())?;
+
+            log::info!("[DB::update_note_group] SQL 执行成功, 影响行数: {}", result);
+
+            // 验证更新
+            let updated = self.get_note_group(id)?;
+            if let Some(g) = updated {
+                log::info!("[DB::update_note_group] 验证更新结果: id={}, name={:?}, parent_id={:?}, sort_order={:?}", 
+                    g.id.unwrap_or(0), g.name, g.parent_id, g.sort_order);
+            }
+
             Ok(())
-        } else { Err("Group ID missing".to_string()) }
+        } else {
+            log::error!("[DB::update_note_group] Group ID missing");
+            Err("Group ID missing".to_string())
+        }
     }
 
     pub fn delete_note_group(&self, id: i64) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM secure_record_groups WHERE id = ?", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM secure_record_groups WHERE id = ?", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     // --- Notes ---
 
-    pub fn get_notes(&self, group_id: Option<i64>) -> Result<Vec<crate::models::note::SecureRecord>, String> {
+    pub fn get_notes(
+        &self,
+        group_id: Option<i64>,
+    ) -> Result<Vec<crate::models::note::SecureRecord>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let sql = if group_id.is_some() {
             "SELECT id, title, content, group_id, pinned, archived, created_at, updated_at FROM secure_records WHERE group_id = ? ORDER BY title"
@@ -363,23 +468,33 @@ impl DatabaseService {
             "SELECT id, title, content, group_id, pinned, archived, created_at, updated_at FROM secure_records ORDER BY title"
         };
         let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
-        
+
         let iter = if let Some(gid) = group_id {
-            stmt.query_map([gid], Self::map_note_row).map_err(|e| e.to_string())?
+            stmt.query_map([gid], Self::map_note_row)
+                .map_err(|e| e.to_string())?
         } else {
-            stmt.query_map([], Self::map_note_row).map_err(|e| e.to_string())?
+            stmt.query_map([], Self::map_note_row)
+                .map_err(|e| e.to_string())?
         };
 
         let mut notes = Vec::new();
-        for note in iter { notes.push(note.map_err(|e| e.to_string())?); }
+        for note in iter {
+            notes.push(note.map_err(|e| e.to_string())?);
+        }
         Ok(notes)
     }
 
     pub fn get_note(&self, id: i64) -> Result<Option<crate::models::note::SecureRecord>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, title, content, group_id, pinned, archived, created_at, updated_at FROM secure_records WHERE id = ?").map_err(|e| e.to_string())?;
-        let mut iter = stmt.query_map([id], Self::map_note_row).map_err(|e| e.to_string())?;
-        if let Some(note) = iter.next() { Ok(Some(note.map_err(|e| e.to_string())?)) } else { Ok(None) }
+        let mut iter = stmt
+            .query_map([id], Self::map_note_row)
+            .map_err(|e| e.to_string())?;
+        if let Some(note) = iter.next() {
+            Ok(Some(note.map_err(|e| e.to_string())?))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn add_note(&self, note: &crate::models::note::SecureRecord) -> Result<i64, String> {
@@ -412,57 +527,86 @@ impl DatabaseService {
                 ),
             ).map_err(|e| e.to_string())?;
             Ok(())
-        } else { Err("Note ID missing".to_string()) }
+        } else {
+            Err("Note ID missing".to_string())
+        }
     }
 
     pub fn delete_note(&self, id: i64) -> Result<(), String> {
-         let conn = self.get_connection().map_err(|e| e.to_string())?;
-         conn.execute("DELETE FROM secure_records WHERE id = ?", [id]).map_err(|e| e.to_string())?;
-         Ok(())
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM secure_records WHERE id = ?", [id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
-    pub fn search_notes(&self, keyword: &str) -> Result<Vec<crate::models::note::SecureRecord>, String> {
+    pub fn search_notes(
+        &self,
+        keyword: &str,
+    ) -> Result<Vec<crate::models::note::SecureRecord>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let pattern = format!("%{}%", keyword);
         let mut stmt = conn.prepare(
             "SELECT id, title, content, group_id, pinned, archived, created_at, updated_at FROM secure_records WHERE title LIKE ?1 OR content LIKE ?1 ORDER BY title"
         ).map_err(|e| e.to_string())?;
-        let iter = stmt.query_map([&pattern], Self::map_note_row).map_err(|e| e.to_string())?;
+        let iter = stmt
+            .query_map([&pattern], Self::map_note_row)
+            .map_err(|e| e.to_string())?;
         let mut notes = Vec::new();
-        for note in iter { notes.push(note.map_err(|e| e.to_string())?); }
+        for note in iter {
+            notes.push(note.map_err(|e| e.to_string())?);
+        }
         Ok(notes)
     }
 
     // --- Settings ---
 
-    pub fn get_user_settings(&self, category: Option<&str>) -> Result<Vec<crate::models::setting::UserSetting>, String> {
+    pub fn get_user_settings(
+        &self,
+        category: Option<&str>,
+    ) -> Result<Vec<crate::models::setting::UserSetting>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let sql = if category.is_some() {
             "SELECT id, key, value, type, category, description, created_at, updated_at FROM user_settings WHERE category = ?"
         } else {
-             "SELECT id, key, value, type, category, description, created_at, updated_at FROM user_settings"
+            "SELECT id, key, value, type, category, description, created_at, updated_at FROM user_settings"
         };
         let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
         let iter = if let Some(cat) = category {
-            stmt.query_map([cat], Self::map_setting_row).map_err(|e| e.to_string())?
+            stmt.query_map([cat], Self::map_setting_row)
+                .map_err(|e| e.to_string())?
         } else {
-            stmt.query_map([], Self::map_setting_row).map_err(|e| e.to_string())?
+            stmt.query_map([], Self::map_setting_row)
+                .map_err(|e| e.to_string())?
         };
         let mut settings = Vec::new();
-        for setting in iter { settings.push(setting.map_err(|e| e.to_string())?); }
+        for setting in iter {
+            settings.push(setting.map_err(|e| e.to_string())?);
+        }
         Ok(settings)
     }
 
-    pub fn get_user_setting(&self, key: &str) -> Result<Option<crate::models::setting::UserSetting>, String> {
+    pub fn get_user_setting(
+        &self,
+        key: &str,
+    ) -> Result<Option<crate::models::setting::UserSetting>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, key, value, type, category, description, created_at, updated_at FROM user_settings WHERE key = ?").map_err(|e| e.to_string())?;
-        let mut iter = stmt.query_map([key], Self::map_setting_row).map_err(|e| e.to_string())?;
-        if let Some(setting) = iter.next() { Ok(Some(setting.map_err(|e| e.to_string())?)) } else { Ok(None) }
+        let mut iter = stmt
+            .query_map([key], Self::map_setting_row)
+            .map_err(|e| e.to_string())?;
+        if let Some(setting) = iter.next() {
+            Ok(Some(setting.map_err(|e| e.to_string())?))
+        } else {
+            Ok(None)
+        }
     }
 
-    pub fn set_user_setting(&self, setting: &crate::models::setting::UserSetting) -> Result<(), String> {
-         let conn = self.get_connection().map_err(|e| e.to_string())?;
-         conn.execute(
+    pub fn set_user_setting(
+        &self,
+        setting: &crate::models::setting::UserSetting,
+    ) -> Result<(), String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        conn.execute(
              "INSERT INTO user_settings (key, value, type, category, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'), datetime('now'))
               ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, category=excluded.category, description=excluded.description, updated_at=datetime('now')",
               (
@@ -473,12 +617,13 @@ impl DatabaseService {
                   &setting.description
               )
          ).map_err(|e| e.to_string())?;
-         Ok(())
+        Ok(())
     }
 
     pub fn delete_user_setting(&self, key: &str) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM user_settings WHERE key = ?", [key]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM user_settings WHERE key = ?", [key])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -497,7 +642,9 @@ impl DatabaseService {
     }
 
     /// 映射数据库行到 Password 结构体
-    fn map_password_row(row: &rusqlite::Row) -> Result<crate::models::password::Password, rusqlite::Error> {
+    fn map_password_row(
+        row: &rusqlite::Row,
+    ) -> Result<crate::models::password::Password, rusqlite::Error> {
         Ok(crate::models::password::Password {
             id: row.get(0)?,
             title: row.get(1)?,
@@ -515,7 +662,9 @@ impl DatabaseService {
         })
     }
 
-    fn map_note_group_row(row: &rusqlite::Row) -> Result<crate::models::note::SecureRecordGroup, rusqlite::Error> {
+    fn map_note_group_row(
+        row: &rusqlite::Row,
+    ) -> Result<crate::models::note::SecureRecordGroup, rusqlite::Error> {
         Ok(crate::models::note::SecureRecordGroup {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -528,8 +677,10 @@ impl DatabaseService {
         })
     }
 
-    fn map_note_row(row: &rusqlite::Row) -> Result<crate::models::note::SecureRecord, rusqlite::Error> {
-         Ok(crate::models::note::SecureRecord {
+    fn map_note_row(
+        row: &rusqlite::Row,
+    ) -> Result<crate::models::note::SecureRecord, rusqlite::Error> {
+        Ok(crate::models::note::SecureRecord {
             id: row.get(0)?,
             title: row.get(1)?,
             content: row.get(2)?,
@@ -541,7 +692,9 @@ impl DatabaseService {
         })
     }
 
-    fn map_setting_row(row: &rusqlite::Row) -> Result<crate::models::setting::UserSetting, rusqlite::Error> {
+    fn map_setting_row(
+        row: &rusqlite::Row,
+    ) -> Result<crate::models::setting::UserSetting, rusqlite::Error> {
         Ok(crate::models::setting::UserSetting {
             id: row.get(0)?,
             key: row.get(1)?,
@@ -571,13 +724,14 @@ impl DatabaseService {
 
     /// 初始化数据库（创建表和索引）
     pub fn initialize(&self) -> Result<(), String> {
-        let conn = self.get_connection()
+        let conn = self
+            .get_connection()
             .map_err(|e| format!("无法连接数据库: {}", e))?;
 
         // 可以在这里开启 WAL 模式提高性能
         conn.execute_batch("PRAGMA journal_mode = WAL;")
-           .map_err(|e| format!("设置 WAL 模式失败: {}", e))?;
-        
+            .map_err(|e| format!("设置 WAL 模式失败: {}", e))?;
+
         // 执行建表 SQL
         conn.execute_batch(CREATE_TABLES_SQL)
             .map_err(|e| format!("创建表失败: {}", e))?;
@@ -698,12 +852,16 @@ mod tests {
         let db_path_str = db_path.to_str().unwrap();
 
         let db_service = DatabaseService::new(db_path_str);
-        
+
         assert!(!db_service.exists());
-        db_service.initialize().expect("Database initialization failed");
+        db_service
+            .initialize()
+            .expect("Database initialization failed");
         assert!(db_service.exists());
 
-        let conn = db_service.get_connection().expect("Failed to get connection");
+        let conn = db_service
+            .get_connection()
+            .expect("Failed to get connection");
         let tables = vec![
             "groups",
             "passwords",
@@ -715,12 +873,14 @@ mod tests {
         ];
 
         for table in tables {
-            let count: i32 = conn.query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
-                [table],
-                |row| row.get(0),
-            ).expect(&format!("Failed to query table {}", table));
-            
+            let count: i32 = conn
+                .query_row(
+                    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
+                    [table],
+                    |row| row.get(0),
+                )
+                .expect(&format!("Failed to query table {}", table));
+
             assert_eq!(count, 1, "Table {} should exist", table);
         }
     }
@@ -760,7 +920,7 @@ mod tests {
         let mut update_pw = fetched.clone();
         update_pw.title = "Updated Title".to_string();
         db_service.update_password(&update_pw).unwrap();
-        
+
         let updated = db_service.get_password(id).unwrap().unwrap();
         assert_eq!(updated.title, "Updated Title");
 
@@ -804,7 +964,7 @@ mod tests {
         let mut update_group = fetched.clone();
         update_group.name = "Updated Group".to_string();
         db_service.update_group(&update_group).unwrap();
-        
+
         let updated = db_service.get_group(id).unwrap().unwrap();
         assert_eq!(updated.name, "Updated Group");
 

@@ -1,10 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Layout, Button, Table, Modal, Form, Input, message, Space, Select, Tabs, Segmented } from 'antd';
-import { PlusOutlined, SettingOutlined, FolderOutlined, FolderAddOutlined, DownloadOutlined, KeyOutlined } from '@ant-design/icons';
-const PasswordGenerator = React.lazy(() => import('./components/PasswordGenerator'));
+import {
+  Layout,
+  Button,
+  Table,
+  Modal,
+  Form,
+  Input,
+  message,
+  Space,
+  Select,
+  Tabs,
+  Segmented,
+} from 'antd';
+import {
+  PlusOutlined,
+  SettingOutlined,
+  FolderOutlined,
+  FolderAddOutlined,
+  DownloadOutlined,
+  KeyOutlined,
+} from '@ant-design/icons';
+const PasswordGenerator = React.lazy(
+  () => import('./components/PasswordGenerator')
+);
 import PasswordDetailModal from './components/PasswordDetailModal';
 const UserSettings = React.lazy(() => import('./components/UserSettings'));
-const ImportExportModal = React.lazy(() => import('./components/ImportExportModal'));
+const ImportExportModal = React.lazy(
+  () => import('./components/ImportExportModal')
+);
 const NoteManager = React.lazy(() => import('./components/NoteManager'));
 import GroupTree from './components/GroupTree';
 import NoteGroupTree from './components/NoteGroupTree';
@@ -71,7 +94,9 @@ const App: React.FC = () => {
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [importExportVisible, setImportExportVisible] = useState(false);
-  const [currentModule, setCurrentModule] = useState<'password' | 'notes'>('password');
+  const [currentModule, setCurrentModule] = useState<'password' | 'notes'>(
+    'password'
+  );
   const {
     noteGroups,
     noteGroupTree,
@@ -82,7 +107,9 @@ const App: React.FC = () => {
     setNoteGroups,
     setNoteGroupTree,
   } = useNotes();
-  const [selectedNoteGroupId, setSelectedNoteGroupId] = useState<number | undefined>();
+  const [selectedNoteGroupId, setSelectedNoteGroupId] = useState<
+    number | undefined
+  >();
   const [noteGroupModalVisible, setNoteGroupModalVisible] = useState(false);
   const [editingNoteGroup, setEditingNoteGroup] = useState<any | null>(null);
   const [noteGroupForm] = Form.useForm();
@@ -93,22 +120,31 @@ const App: React.FC = () => {
   const [globalSearchNotes, setGlobalSearchNotes] = useState<any[]>([]);
   const [noteOpenId, setNoteOpenId] = useState<number | undefined>(undefined);
   const [noteOpenSignal, setNoteOpenSignal] = useState(0);
-  const [globalSearchActiveTab, setGlobalSearchActiveTab] = useState<'pw' | 'nt'>('pw');
+  const [globalSearchActiveTab, setGlobalSearchActiveTab] = useState<
+    'pw' | 'nt'
+  >('pw');
   const [selectedPwIndex, setSelectedPwIndex] = useState(0);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState(0);
 
   const [editingPassword, setEditingPassword] = useState<Password | null>(null);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [generatorVisible, setGeneratorVisible] = useState(false);
-  const [passwordDetailMode, setPasswordDetailMode] = useState<'view' | 'edit' | 'create'>('view');
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const [visibleHistoryPasswords, setVisibleHistoryPasswords] = useState<Set<string>>(new Set());
+  const [passwordDetailMode, setPasswordDetailMode] = useState<
+    'view' | 'edit' | 'create'
+  >('view');
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(
+    new Set()
+  );
+  const [visibleHistoryPasswords, setVisibleHistoryPasswords] = useState<
+    Set<string>
+  >(new Set());
   const [form] = Form.useForm();
   const [treeKey, setTreeKey] = useState(0);
   const [groupForm] = Form.useForm();
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [securityState, setSecurityState] = useState<MasterPasswordState | null>(null);
+  const [securityState, setSecurityState] =
+    useState<MasterPasswordState | null>(null);
   const [locked, setLocked] = useState(true);
   const [checkingSecurity, setCheckingSecurity] = useState(true);
   const [securityLoading, setSecurityLoading] = useState(false);
@@ -124,18 +160,12 @@ const App: React.FC = () => {
         const shouldLock = state.requireMasterPassword;
         setLocked(shouldLock);
         if (!shouldLock) {
-          await Promise.all([
-            loadGroups(),
-            loadRecentPasswords(),
-          ]);
+          await Promise.all([loadGroups(), loadRecentPasswords()]);
         }
       } catch (err) {
         reportError('APP_LOAD_SECURITY_STATE_FAILED', '加载安全状态失败', err);
         setLocked(false);
-        await Promise.all([
-          loadGroups(),
-          loadRecentPasswords(),
-        ]);
+        await Promise.all([loadGroups(), loadRecentPasswords()]);
       } finally {
         setCheckingSecurity(false);
       }
@@ -165,21 +195,40 @@ const App: React.FC = () => {
     } else if (!searchQuery) {
       loadRecentPasswords();
     }
-  }, [selectedGroupId, searchQuery, loadPasswords, loadRecentPasswords, locked, checkingSecurity]);
+  }, [
+    selectedGroupId,
+    searchQuery,
+    loadPasswords,
+    loadRecentPasswords,
+    locked,
+    checkingSecurity,
+  ]);
 
   const resetAutoLockTimer = useCallback(() => {
     if (lockTimerRef.current) {
       clearTimeout(lockTimerRef.current);
     }
-    if (!securityState?.requireMasterPassword || !securityState.hasMasterPassword) return;
+    if (
+      !securityState?.requireMasterPassword ||
+      !securityState.hasMasterPassword
+    )
+      return;
     const minutes = Math.max(1, securityState.autoLockMinutes || 5);
-    lockTimerRef.current = setTimeout(() => {
-      setLocked(true);
-    }, minutes * 60 * 1000);
+    lockTimerRef.current = setTimeout(
+      () => {
+        setLocked(true);
+      },
+      minutes * 60 * 1000
+    );
   }, [securityState]);
 
   useEffect(() => {
-    if (locked || !securityState?.requireMasterPassword || !securityState.hasMasterPassword) return;
+    if (
+      locked ||
+      !securityState?.requireMasterPassword ||
+      !securityState.hasMasterPassword
+    )
+      return;
     const reset = () => resetAutoLockTimer();
     window.addEventListener('mousemove', reset);
     window.addEventListener('keydown', reset);
@@ -195,38 +244,44 @@ const App: React.FC = () => {
     };
   }, [locked, securityState, resetAutoLockTimer]);
 
-  const handleUnlock = useCallback(async (password: string) => {
-    setSecurityLoading(true);
-    const res = await securityService.verifyMasterPassword(password);
-    setSecurityLoading(false);
-    if (!res.success) {
-      const msg = res.error || '主密码不正确';
-      message.error(msg);
-      throw new Error(msg);
-    }
-    setSecurityState(res.state || securityState);
-    setLocked(false);
-    resetAutoLockTimer();
-    await loadGroups();
-    await loadRecentPasswords();
-  }, [loadGroups, loadRecentPasswords, resetAutoLockTimer, securityState]);
+  const handleUnlock = useCallback(
+    async (password: string) => {
+      setSecurityLoading(true);
+      const res = await securityService.verifyMasterPassword(password);
+      setSecurityLoading(false);
+      if (!res.success) {
+        const msg = res.error || '主密码不正确';
+        message.error(msg);
+        throw new Error(msg);
+      }
+      setSecurityState(res.state || securityState);
+      setLocked(false);
+      resetAutoLockTimer();
+      await loadGroups();
+      await loadRecentPasswords();
+    },
+    [loadGroups, loadRecentPasswords, resetAutoLockTimer, securityState]
+  );
 
-  const handleSetupMaster = useCallback(async (password: string, hint?: string) => {
-    setSecurityLoading(true);
-    const res = await securityService.setMasterPassword(password, hint);
-    setSecurityLoading(false);
-    if (!res.success) {
-      const msg = res.error || '设置主密码失败';
-      message.error(msg);
-      throw new Error(msg);
-    }
-    setSecurityState(res.state || securityState);
-    message.success('主密码已设置并启用');
-    setLocked(false);
-    resetAutoLockTimer();
-    await loadGroups();
-    await loadRecentPasswords();
-  }, [loadGroups, loadRecentPasswords, resetAutoLockTimer, securityState]);
+  const handleSetupMaster = useCallback(
+    async (password: string, hint?: string) => {
+      setSecurityLoading(true);
+      const res = await securityService.setMasterPassword(password, hint);
+      setSecurityLoading(false);
+      if (!res.success) {
+        const msg = res.error || '设置主密码失败';
+        message.error(msg);
+        throw new Error(msg);
+      }
+      setSecurityState(res.state || securityState);
+      message.success('主密码已设置并启用');
+      setLocked(false);
+      resetAutoLockTimer();
+      await loadGroups();
+      await loadRecentPasswords();
+    },
+    [loadGroups, loadRecentPasswords, resetAutoLockTimer, securityState]
+  );
 
   useEffect(() => {
     const refreshState = async () => {
@@ -242,7 +297,11 @@ const App: React.FC = () => {
           clearTimeout(lockTimerRef.current);
         }
       } catch (err) {
-        reportError('APP_REFRESH_SECURITY_STATE_FAILED', '刷新安全状态失败', err);
+        reportError(
+          'APP_REFRESH_SECURITY_STATE_FAILED',
+          '刷新安全状态失败',
+          err
+        );
       }
     };
     if (settingsVisibleRef.current && !settingsVisible) {
@@ -251,10 +310,10 @@ const App: React.FC = () => {
     settingsVisibleRef.current = settingsVisible;
   }, [settingsVisible, locked, resetAutoLockTimer]);
 
-
-
   const handleAdd = useCallback(() => {
-    setEditingPassword(selectedGroupId ? ({ group_id: selectedGroupId } as any) : null);
+    setEditingPassword(
+      selectedGroupId ? ({ group_id: selectedGroupId } as any) : null
+    );
     setPasswordDetailMode('create');
     setModalVisible(true);
     form.resetFields();
@@ -288,7 +347,6 @@ const App: React.FC = () => {
     setModalVisible(true);
   };
 
-
   const handleDelete = async (id: number) => {
     try {
       const result = await removePassword(id);
@@ -300,7 +358,12 @@ const App: React.FC = () => {
       }
     } catch (error) {
       message.error('删除失败');
-      reportError('APP_DELETE_PASSWORD_FAILED', 'Delete password error', error, { passwordId: id });
+      reportError(
+        'APP_DELETE_PASSWORD_FAILED',
+        'Delete password error',
+        error,
+        { passwordId: id }
+      );
     }
   };
 
@@ -332,10 +395,15 @@ const App: React.FC = () => {
       loadPasswords(selectedGroupId);
     } catch (error) {
       message.error(passwordDetailMode === 'create' ? '添加失败' : '更新失败');
-      reportError('APP_SUBMIT_PASSWORD_FAILED', 'Submit password form failed', error, {
-        mode: passwordDetailMode,
-        hasEditingPassword: !!editingPassword,
-      });
+      reportError(
+        'APP_SUBMIT_PASSWORD_FAILED',
+        'Submit password form failed',
+        error,
+        {
+          mode: passwordDetailMode,
+          hasEditingPassword: !!editingPassword,
+        }
+      );
     }
   };
 
@@ -365,11 +433,11 @@ const App: React.FC = () => {
       }
     } catch (error) {
       message.error('删除分组失败');
-      reportError('APP_DELETE_GROUP_FAILED', 'Delete group error', error, { groupId: id });
+      reportError('APP_DELETE_GROUP_FAILED', 'Delete group error', error, {
+        groupId: id,
+      });
     }
   };
-
-
 
   const handleSubmitGroup = async (values: any) => {
     try {
@@ -391,12 +459,19 @@ const App: React.FC = () => {
       setGroupModalVisible(false);
       await loadGroups();
       // 强制刷新Tree组件
-      setTreeKey(prev => prev + 1);
+      setTreeKey((prev) => prev + 1);
     } catch (error: any) {
-      message.error(error.message || (editingGroup ? '更新分组失败' : '添加分组失败'));
-      reportError('APP_SUBMIT_GROUP_FAILED', 'Submit group form failed', error, {
-        hasEditingGroup: !!editingGroup,
-      });
+      message.error(
+        error.message || (editingGroup ? '更新分组失败' : '添加分组失败')
+      );
+      reportError(
+        'APP_SUBMIT_GROUP_FAILED',
+        'Submit group form failed',
+        error,
+        {
+          hasEditingGroup: !!editingGroup,
+        }
+      );
     }
   };
 
@@ -407,7 +482,7 @@ const App: React.FC = () => {
   };
 
   const togglePasswordVisibility = (passwordId: string) => {
-    setVisiblePasswords(prev => {
+    setVisiblePasswords((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(passwordId)) {
         newSet.delete(passwordId);
@@ -419,7 +494,7 @@ const App: React.FC = () => {
   };
 
   const toggleHistoryPasswordVisibility = (historyId: string) => {
-    setVisibleHistoryPasswords(prev => {
+    setVisibleHistoryPasswords((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(historyId)) {
         newSet.delete(historyId);
@@ -436,9 +511,10 @@ const App: React.FC = () => {
     if (selectedKeys.length > 0) {
       const selectedKey = selectedKeys[0] as string;
       setSelectedGroupId(parseInt(selectedKey));
-      const hasChildren = info.node && info.node.children && info.node.children.length > 0;
+      const hasChildren =
+        info.node && info.node.children && info.node.children.length > 0;
       if (hasChildren && !expandedKeys.includes(selectedKey)) {
-        setExpandedKeys(prev => [...prev, selectedKey]);
+        setExpandedKeys((prev) => [...prev, selectedKey]);
       }
     } else {
       setSelectedGroupId(undefined);
@@ -482,22 +558,29 @@ const App: React.FC = () => {
 
   const handleSubmitNoteGroup = async (values: any) => {
     try {
-      const payload = { name: values.name, parent_id: values.parent_id || null, color: values.color || 'blue' };
+      const payload = {
+        name: values.name,
+        parent_id: values.parent_id || null,
+        color: values.color || 'blue',
+      };
       if (editingNoteGroup && editingNoteGroup.id) {
         const result = await updateNoteGroup(editingNoteGroup.id, payload);
-        if (result.success) message.success('更新便笺分组成功'); else message.error((result as any).error || '更新便笺分组失败');
+        if (result.success) message.success('更新便笺分组成功');
+        else message.error((result as any).error || '更新便笺分组失败');
       } else {
         const result = await createNoteGroup(payload);
-        if (result.success) message.success('添加便笺分组成功'); else message.error((result as any).error || '添加便笺分组失败');
+        if (result.success) message.success('添加便笺分组成功');
+        else message.error((result as any).error || '添加便笺分组失败');
       }
       setNoteGroupModalVisible(false);
       await loadNoteGroups();
     } catch (error: any) {
-      message.error(error.message || (editingNoteGroup ? '更新便笺分组失败' : '添加便笺分组失败'));
+      message.error(
+        error.message ||
+          (editingNoteGroup ? '更新便笺分组失败' : '添加便笺分组失败')
+      );
     }
   };
-
-  // 便笺分组排序功能已由 NoteGroupTree 组件承载
 
   useEffect(() => {
     if (currentModule === 'notes') {
@@ -510,12 +593,19 @@ const App: React.FC = () => {
     const handler = async (e: KeyboardEvent) => {
       const k = e.key;
       if (k === 'ArrowDown') {
-        if (globalSearchActiveTab === 'pw') setSelectedPwIndex(i => Math.min(i + 1, Math.max(0, globalSearchPasswords.length - 1)));
-        else setSelectedNoteIndex(i => Math.min(i + 1, Math.max(0, globalSearchNotes.length - 1)));
+        if (globalSearchActiveTab === 'pw')
+          setSelectedPwIndex((i) =>
+            Math.min(i + 1, Math.max(0, globalSearchPasswords.length - 1))
+          );
+        else
+          setSelectedNoteIndex((i) =>
+            Math.min(i + 1, Math.max(0, globalSearchNotes.length - 1))
+          );
         e.preventDefault();
       } else if (k === 'ArrowUp') {
-        if (globalSearchActiveTab === 'pw') setSelectedPwIndex(i => Math.max(i - 1, 0));
-        else setSelectedNoteIndex(i => Math.max(i - 1, 0));
+        if (globalSearchActiveTab === 'pw')
+          setSelectedPwIndex((i) => Math.max(i - 1, 0));
+        else setSelectedNoteIndex((i) => Math.max(i - 1, 0));
         e.preventDefault();
       } else if (k === 'Enter') {
         if (globalSearchActiveTab === 'pw' && globalSearchPasswords.length) {
@@ -535,28 +625,59 @@ const App: React.FC = () => {
           setCurrentModule('notes');
           setGlobalSearchVisible(false);
           setNoteOpenId(row.id);
-          setNoteOpenSignal(s => s + 1);
+          setNoteOpenSignal((s) => s + 1);
         }
         e.preventDefault();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [globalSearchVisible, globalSearchActiveTab, globalSearchPasswords, globalSearchNotes, selectedPwIndex, selectedNoteIndex]);
+  }, [
+    globalSearchVisible,
+    globalSearchActiveTab,
+    globalSearchPasswords,
+    globalSearchNotes,
+    selectedPwIndex,
+    selectedNoteIndex,
+  ]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
-      if (meta && k === '1') { setCurrentModule('password'); e.preventDefault(); }
-      if (meta && k === '2') { setCurrentModule('notes'); e.preventDefault(); }
-      if (meta && k === 'f') { const el = document.querySelector('input[placeholder*="搜索"]') as HTMLInputElement; if (el) { el.focus(); el.select(); } e.preventDefault(); }
-      if (meta && k === 'n') {
-        if (currentModule === 'password') { handleAdd(); } else { setNoteCreateSignal((s) => s + 1); }
+      if (meta && k === '1') {
+        setCurrentModule('password');
         e.preventDefault();
       }
-      if (meta && k === 'k') { setCmdPaletteVisible(true); e.preventDefault(); }
-      if (e.key === 'Escape') { setCmdPaletteVisible(false); }
+      if (meta && k === '2') {
+        setCurrentModule('notes');
+        e.preventDefault();
+      }
+      if (meta && k === 'f') {
+        const el = document.querySelector(
+          'input[placeholder*="搜索"]'
+        ) as HTMLInputElement;
+        if (el) {
+          el.focus();
+          el.select();
+        }
+        e.preventDefault();
+      }
+      if (meta && k === 'n') {
+        if (currentModule === 'password') {
+          handleAdd();
+        } else {
+          setNoteCreateSignal((s) => s + 1);
+        }
+        e.preventDefault();
+      }
+      if (meta && k === 'k') {
+        setCmdPaletteVisible(true);
+        e.preventDefault();
+      }
+      if (e.key === 'Escape') {
+        setCmdPaletteVisible(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -572,9 +693,8 @@ const App: React.FC = () => {
     passwords as any
   ) as any;
 
-  const historyColumns = buildHistoryColumns(
-    visibleHistoryPasswords,
-    (key) => toggleHistoryPasswordVisibility(key)
+  const historyColumns = buildHistoryColumns(visibleHistoryPasswords, (key) =>
+    toggleHistoryPasswordVisibility(key)
   ) as any;
 
   return (
@@ -583,28 +703,36 @@ const App: React.FC = () => {
         <Header className="header">
           <div className="app-toolbar">
             <div className="toolbar-left">
-              <div className="logo"><KeyOutlined /> Mylo</div>
+              <div className="logo">
+                <KeyOutlined /> Mylo
+              </div>
               <Segmented
                 value={currentModule}
                 onChange={(v) => setCurrentModule(v as any)}
                 options={[
                   { label: '密码', value: 'password' },
-                  { label: '便笺', value: 'notes' }
+                  { label: '便笺', value: 'notes' },
                 ]}
               />
             </div>
             <div className="toolbar-center">
               <Input.Search
                 allowClear
-                placeholder={currentModule === 'password' ? '搜索密码：标题/用户名/URL' : '搜索便笺标题'}
+                placeholder={
+                  currentModule === 'password'
+                    ? '搜索密码：标题/用户名/URL'
+                    : '搜索便笺标题'
+                }
                 className="header-search"
                 onSearch={async (value) => {
                   try {
-                    if (!value || value.trim() === '') { return; }
+                    if (!value || value.trim() === '') {
+                      return;
+                    }
                     setSearchQuery(value);
                     const [pw, nt] = await Promise.all([
                       window.electronAPI.searchPasswords(value),
-                      window.electronAPI.searchNotesTitle(value)
+                      window.electronAPI.searchNotesTitle(value),
                     ]);
                     console.log('🔍 搜索结果 - 密码:', pw);
                     console.log('🔍 第一条密码数据:', pw && pw[0]);
@@ -612,23 +740,59 @@ const App: React.FC = () => {
                     setGlobalSearchNotes(nt || []);
                     setSelectedPwIndex(0);
                     setSelectedNoteIndex(0);
-                    setGlobalSearchActiveTab(currentModule === 'password' ? 'pw' : 'nt');
+                    setGlobalSearchActiveTab(
+                      currentModule === 'password' ? 'pw' : 'nt'
+                    );
                     setGlobalSearchVisible(true);
-                  } catch { message.error('搜索失败'); }
+                  } catch {
+                    message.error('搜索失败');
+                  }
                 }}
               />
             </div>
             <div className="toolbar-right header-actions">
-              <Button icon={<DownloadOutlined />} onClick={() => setImportExportVisible(true)}>导入导出</Button>
-              <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>设置</Button>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={() => setImportExportVisible(true)}
+              >
+                导入导出
+              </Button>
+              <Button
+                icon={<SettingOutlined />}
+                onClick={() => setSettingsVisible(true)}
+              >
+                设置
+              </Button>
             </div>
           </div>
         </Header>
         <Layout>
-          <Sider width={250} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
+          <Sider
+            width={250}
+            style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}
+          >
             <div style={{ padding: '16px' }}>
-              <Button icon={<FolderAddOutlined />} onClick={currentModule === 'password' ? handleAddGroup : handleAddNoteGroup} style={{ width: '100%', marginBottom: '16px' }}>新建分组</Button>
-              <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold', color: '#666' }}>分组列表</div>
+              <Button
+                icon={<FolderAddOutlined />}
+                onClick={
+                  currentModule === 'password'
+                    ? handleAddGroup
+                    : handleAddNoteGroup
+                }
+                style={{ width: '100%', marginBottom: '16px' }}
+              >
+                新建分组
+              </Button>
+              <div
+                style={{
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: '#666',
+                }}
+              >
+                分组列表
+              </div>
               {currentModule === 'password' ? (
                 <GroupTree
                   groups={groups}
@@ -658,14 +822,37 @@ const App: React.FC = () => {
           </Sider>
 
           <Layout style={{ padding: '24px' }}>
-            <Content style={{ background: '#fff', padding: '22px', borderRadius: '8px' }}>
+            <Content
+              style={{
+                background: '#fff',
+                padding: '22px',
+                borderRadius: '8px',
+              }}
+            >
               {currentModule === 'password' ? (
                 <>
-                  <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
                     <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                      {searchQuery ? '搜索结果' : selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : '最新记录'}
+                      {searchQuery
+                        ? '搜索结果'
+                        : selectedGroupId
+                          ? groups.find((g) => g.id === selectedGroupId)?.name
+                          : '最新记录'}
                     </h2>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>添加密码</Button>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={handleAdd}
+                    >
+                      添加密码
+                    </Button>
                   </div>
                   <Table
                     columns={columns}
@@ -674,20 +861,42 @@ const App: React.FC = () => {
                     loading={loading}
                     tableLayout="fixed"
                     scroll={{ x: 'max-content' }}
-                    pagination={{ total: passwords.length, pageSize: 10, showSizeChanger: true, showQuickJumper: true, showTotal: (total) => `共 ${total} 条记录` }}
+                    pagination={{
+                      total: passwords.length,
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total) => `共 ${total} 条记录`,
+                    }}
                   />
                 </>
               ) : (
                 <>
-                  <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
                     <h2 style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                      {selectedNoteGroupId ? noteGroups.find(g => g.id === selectedNoteGroupId)?.name || '便笺' : '最新便笺'}
+                      {selectedNoteGroupId
+                        ? noteGroups.find((g) => g.id === selectedNoteGroupId)
+                            ?.name || '便笺'
+                        : '最新便笺'}
                     </h2>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setNoteCreateSignal(s => s + 1)}>添加便笺</Button>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => setNoteCreateSignal((s) => s + 1)}
+                    >
+                      添加便笺
+                    </Button>
                   </div>
                   <React.Suspense fallback={<div>正在加载便笺模块...</div>}>
                     <NoteManager
-                      onClose={() => { }}
+                      onClose={() => {}}
                       selectedGroupId={selectedNoteGroupId}
                       externalGroups={noteGroups as any}
                       hideTopFilter
@@ -721,11 +930,7 @@ const App: React.FC = () => {
           onCancel={() => setGroupModalVisible(false)}
           footer={null}
         >
-          <Form
-            form={groupForm}
-            layout="vertical"
-            onFinish={handleSubmitGroup}
-          >
+          <Form form={groupForm} layout="vertical" onFinish={handleSubmitGroup}>
             <Form.Item
               name="name"
               label="分组名称"
@@ -734,24 +939,20 @@ const App: React.FC = () => {
               <Input placeholder="分组名称" />
             </Form.Item>
 
-            <Form.Item
-              name="parent_id"
-              label="父级分组"
-            >
+            <Form.Item name="parent_id" label="父级分组">
               <Select placeholder="选择父级分组" allowClear>
-                {groups.filter(g => !editingGroup || g.id !== editingGroup.id).map(group => (
-                  <Option key={group.id} value={group.id}>
-                    {group.icon === 'folder' ? <FolderOutlined /> : null} {group.name}
-                  </Option>
-                ))}
+                {groups
+                  .filter((g) => !editingGroup || g.id !== editingGroup.id)
+                  .map((group) => (
+                    <Option key={group.id} value={group.id}>
+                      {group.icon === 'folder' ? <FolderOutlined /> : null}{' '}
+                      {group.name}
+                    </Option>
+                  ))}
               </Select>
             </Form.Item>
 
-            <Form.Item
-              name="color"
-              label="颜色"
-              initialValue="blue"
-            >
+            <Form.Item name="color" label="颜色" initialValue="blue">
               <Select>
                 <Option value="blue">蓝色</Option>
                 <Option value="green">绿色</Option>
@@ -766,11 +967,7 @@ const App: React.FC = () => {
               </Select>
             </Form.Item>
 
-            <Form.Item
-              name="sort"
-              label="排序"
-              tooltip="数字越小越靠前"
-            >
+            <Form.Item name="sort" label="排序" tooltip="数字越小越靠前">
               <Input type="number" placeholder="请输入排序数字" />
             </Form.Item>
 
@@ -794,7 +991,7 @@ const App: React.FC = () => {
           footer={[
             <Button key="close" onClick={() => setHistoryModalVisible(false)}>
               关闭
-            </Button>
+            </Button>,
           ]}
           width={800}
         >
@@ -836,17 +1033,35 @@ const App: React.FC = () => {
           />
         </React.Suspense>
 
-
-        <Modal title={editingNoteGroup ? '编辑便笺分组' : '新建便笺分组'} open={noteGroupModalVisible} onCancel={() => setNoteGroupModalVisible(false)} footer={null}>
-          <Form form={noteGroupForm} layout="vertical" onFinish={handleSubmitNoteGroup}>
-            <Form.Item name="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]}>
+        <Modal
+          title={editingNoteGroup ? '编辑便笺分组' : '新建便笺分组'}
+          open={noteGroupModalVisible}
+          onCancel={() => setNoteGroupModalVisible(false)}
+          footer={null}
+        >
+          <Form
+            form={noteGroupForm}
+            layout="vertical"
+            onFinish={handleSubmitNoteGroup}
+          >
+            <Form.Item
+              name="name"
+              label="分组名称"
+              rules={[{ required: true, message: '请输入分组名称' }]}
+            >
               <Input placeholder="分组名称" />
             </Form.Item>
             <Form.Item name="parent_id" label="父级分组">
               <Select placeholder="选择父级分组" allowClear>
-                {(noteGroups || []).filter((g) => !editingNoteGroup || g.id !== editingNoteGroup.id).map(group => (
-                  <Option key={group.id} value={group.id as number}>{group.name}</Option>
-                ))}
+                {(noteGroups || [])
+                  .filter(
+                    (g) => !editingNoteGroup || g.id !== editingNoteGroup.id
+                  )
+                  .map((group) => (
+                    <Option key={group.id} value={group.id as number}>
+                      {group.name}
+                    </Option>
+                  ))}
               </Select>
             </Form.Item>
             <Form.Item name="color" label="颜色" initialValue="blue">
@@ -865,47 +1080,147 @@ const App: React.FC = () => {
             </Form.Item>
             <Form.Item>
               <Space>
-                <Button type="primary" htmlType="submit">{editingNoteGroup ? '更新' : '添加'}</Button>
-                <Button onClick={() => setNoteGroupModalVisible(false)}>取消</Button>
+                <Button type="primary" htmlType="submit">
+                  {editingNoteGroup ? '更新' : '添加'}
+                </Button>
+                <Button onClick={() => setNoteGroupModalVisible(false)}>
+                  取消
+                </Button>
               </Space>
             </Form.Item>
           </Form>
         </Modal>
 
-
-
-        <Modal title="全局搜索" open={globalSearchVisible} onCancel={() => setGlobalSearchVisible(false)} footer={null} width={900}>
-          <Tabs activeKey={globalSearchActiveTab} onChange={(k) => setGlobalSearchActiveTab(k as any)} items={[
-            {
-              key: 'pw', label: `密码（${globalSearchPasswords.length}）`, children: (
-                <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchPasswords} columns={[
-                  { title: '标题', dataIndex: 'title' },
-                  { title: '用户名', dataIndex: 'username' },
-                  { title: '分组', dataIndex: 'groupName', render: (name: string) => name || '未分组' },
-                  { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('password'); handleView(row); setGlobalSearchVisible(false); }}>打开</Button>) }
-                ]} />
-              )
-            },
-            {
-              key: 'nt', label: `便笺（${globalSearchNotes.length}）`, children: (
-                <Table size="small" pagination={{ pageSize: 10 }} rowKey="id" dataSource={globalSearchNotes} columns={[
-                  { title: '标题', dataIndex: 'title' },
-                  { title: '分组', dataIndex: 'group_id', render: (gid: number) => { const g = noteGroups.find(x => x.id === gid); return g ? g.name : '未分组'; } },
-                  { title: '更新时间', dataIndex: 'updated_at' },
-                  { title: '操作', render: (_: any, row: any) => (<Button size="small" onClick={() => { setCurrentModule('notes'); setGlobalSearchVisible(false); setNoteOpenId(row.id); setNoteOpenSignal(s => s + 1); }}>打开</Button>) }
-                ]} />
-              )
-            }
-          ]} />
+        <Modal
+          title="全局搜索"
+          open={globalSearchVisible}
+          onCancel={() => setGlobalSearchVisible(false)}
+          footer={null}
+          width={900}
+        >
+          <Tabs
+            activeKey={globalSearchActiveTab}
+            onChange={(k) => setGlobalSearchActiveTab(k as any)}
+            items={[
+              {
+                key: 'pw',
+                label: `密码（${globalSearchPasswords.length}）`,
+                children: (
+                  <Table
+                    size="small"
+                    pagination={{ pageSize: 10 }}
+                    rowKey="id"
+                    dataSource={globalSearchPasswords}
+                    columns={[
+                      { title: '标题', dataIndex: 'title' },
+                      { title: '用户名', dataIndex: 'username' },
+                      {
+                        title: '分组',
+                        dataIndex: 'groupName',
+                        render: (name: string) => name || '未分组',
+                      },
+                      {
+                        title: '操作',
+                        render: (_: any, row: any) => (
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setCurrentModule('password');
+                              handleView(row);
+                              setGlobalSearchVisible(false);
+                            }}
+                          >
+                            打开
+                          </Button>
+                        ),
+                      },
+                    ]}
+                  />
+                ),
+              },
+              {
+                key: 'nt',
+                label: `便笺（${globalSearchNotes.length}）`,
+                children: (
+                  <Table
+                    size="small"
+                    pagination={{ pageSize: 10 }}
+                    rowKey="id"
+                    dataSource={globalSearchNotes}
+                    columns={[
+                      { title: '标题', dataIndex: 'title' },
+                      {
+                        title: '分组',
+                        dataIndex: 'group_id',
+                        render: (gid: number) => {
+                          const g = noteGroups.find((x) => x.id === gid);
+                          return g ? g.name : '未分组';
+                        },
+                      },
+                      { title: '更新时间', dataIndex: 'updated_at' },
+                      {
+                        title: '操作',
+                        render: (_: any, row: any) => (
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setCurrentModule('notes');
+                              setGlobalSearchVisible(false);
+                              setNoteOpenId(row.id);
+                              setNoteOpenSignal((s) => s + 1);
+                            }}
+                          >
+                            打开
+                          </Button>
+                        ),
+                      },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+          />
         </Modal>
 
-        <Modal title="命令面板" open={cmdPaletteVisible} onCancel={() => setCmdPaletteVisible(false)} footer={null}>
+        <Modal
+          title="命令面板"
+          open={cmdPaletteVisible}
+          onCancel={() => setCmdPaletteVisible(false)}
+          footer={null}
+        >
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Button onClick={() => { setCurrentModule('password'); setCmdPaletteVisible(false); }}>切换到密码模块</Button>
-            <Button onClick={() => { setCurrentModule('notes'); setCmdPaletteVisible(false); }}>切换到便笺模块</Button>
-            <Button onClick={() => { if (currentModule === 'password') { handleAdd(); } else { setNoteCreateSignal((s) => s + 1); } setCmdPaletteVisible(false); }}>快速新建当前模块条目</Button>
+            <Button
+              onClick={() => {
+                setCurrentModule('password');
+                setCmdPaletteVisible(false);
+              }}
+            >
+              切换到密码模块
+            </Button>
+            <Button
+              onClick={() => {
+                setCurrentModule('notes');
+                setCmdPaletteVisible(false);
+              }}
+            >
+              切换到便笺模块
+            </Button>
+            <Button
+              onClick={() => {
+                if (currentModule === 'password') {
+                  handleAdd();
+                } else {
+                  setNoteCreateSignal((s) => s + 1);
+                }
+                setCmdPaletteVisible(false);
+              }}
+            >
+              快速新建当前模块条目
+            </Button>
           </Space>
-          <div style={{ marginTop: 8, color: '#999' }}>快捷键：⌘1/⌘2 切模块 · ⌘F 搜索 · ⌘N 新建 · ⌘K 打开此面板</div>
+          <div style={{ marginTop: 8, color: '#999' }}>
+            快捷键：⌘1/⌘2 切模块 · ⌘F 搜索 · ⌘N 新建 · ⌘K 打开此面板
+          </div>
         </Modal>
       </Layout>
       <MasterPasswordGate

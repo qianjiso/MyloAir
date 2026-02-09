@@ -1,25 +1,59 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotes } from '../hooks/useNotes';
 import * as notesService from '../services/notes';
-import { Button, Table, Modal, Form, Input, Select, Space, Tag, message } from 'antd';
+import {
+  Button,
+  Table,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Space,
+  Tag,
+  message,
+} from 'antd';
 import type { SecureRecord, SecureRecordGroup } from '../../shared/types';
 import type { InputRef } from 'antd';
 
 type NoteGroup = SecureRecordGroup;
 type NoteRecord = SecureRecord;
 
-const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; externalGroups?: NoteGroup[]; hideTopFilter?: boolean; createSignal?: number; openNoteId?: number; openSignal?: number; createTemplate?: string; templateSignal?: number }> = ({ onClose: _onClose, selectedGroupId: selectedGroupIdProp, externalGroups, hideTopFilter, createSignal, openNoteId, openSignal, createTemplate, templateSignal }) => {
+const NoteManager: React.FC<{
+  onClose: () => void;
+  selectedGroupId?: number;
+  externalGroups?: NoteGroup[];
+  hideTopFilter?: boolean;
+  createSignal?: number;
+  openNoteId?: number;
+  openSignal?: number;
+  createTemplate?: string;
+  templateSignal?: number;
+}> = ({
+  onClose: _onClose,
+  selectedGroupId: selectedGroupIdProp,
+  externalGroups,
+  hideTopFilter,
+  createSignal,
+  openNoteId,
+  openSignal,
+  createTemplate,
+  templateSignal,
+}) => {
   const { noteGroups, loadNoteGroups } = useNotes();
   const groups: NoteGroup[] = externalGroups ?? (noteGroups as any);
   const [notes, setNotes] = useState<NoteRecord[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(selectedGroupIdProp);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(
+    selectedGroupIdProp
+  );
   const [loading, setLoading] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteRecord | null>(null);
   const [form] = Form.useForm();
   const [viewVisible, setViewVisible] = useState(false);
   const [viewText, setViewText] = useState('');
-  const [selectedLineSet, setSelectedLineSet] = useState<Set<number>>(new Set());
+  const [selectedLineSet, setSelectedLineSet] = useState<Set<number>>(
+    new Set()
+  );
   const titleInputRef = useRef<InputRef>(null);
 
   const loadGroups = useCallback(async () => {
@@ -36,9 +70,13 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
   const loadNotes = useCallback(async (groupId?: number) => {
     setLoading(true);
     try {
+      console.log('[NoteManager] Loading notes for groupId:', groupId);
       const res = await notesService.listNotes(groupId);
+      console.log('[NoteManager] Notes loaded:', res?.length || 0, 'items');
+      console.log('[NoteManager] First note (if any):', res?.[0]);
       setNotes(res || []);
     } catch (e) {
+      console.error('[NoteManager] Failed to load notes:', e);
       message.error('加载便笺失败');
     } finally {
       setLoading(false);
@@ -57,8 +95,6 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
     }
   }, [selectedGroupIdProp, loadNotes]);
 
-  
-
   useEffect(() => {
     if (createSignal) {
       handleAdd();
@@ -67,10 +103,17 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
   }, [createSignal]);
 
   useEffect(() => {
-    if (typeof templateSignal !== 'undefined' && typeof createTemplate === 'string') {
+    if (
+      typeof templateSignal !== 'undefined' &&
+      typeof createTemplate === 'string'
+    ) {
       setEditingNote(null);
       setEditVisible(true);
-      form.setFieldsValue({ title: '', content_ciphertext: createTemplate, group_id: selectedGroupId || undefined });
+      form.setFieldsValue({
+        title: '',
+        content_ciphertext: createTemplate,
+        group_id: selectedGroupId || undefined,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateSignal]);
@@ -83,7 +126,11 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
           if (note) {
             setEditingNote(note);
             setEditVisible(true);
-            form.setFieldsValue({ title: note.title || '', content_ciphertext: note.content_ciphertext || '', group_id: note.group_id || undefined });
+            form.setFieldsValue({
+              title: note.title || '',
+              content_ciphertext: note.content || '',
+              group_id: note.group_id || undefined,
+            });
           }
         } catch (e) {
           message.error('加载便笺失败');
@@ -110,7 +157,11 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
 
   const handleEdit = (record: NoteRecord) => {
     setEditingNote(record);
-    form.setFieldsValue({ title: record.title || '', content_ciphertext: record.content_ciphertext, group_id: record.group_id || undefined });
+    form.setFieldsValue({
+      title: record.title || '',
+      content_ciphertext: record.content,
+      group_id: record.group_id || undefined,
+    });
     setEditVisible(true);
   };
 
@@ -130,94 +181,201 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
   };
 
   const handleSubmit = async (values: any) => {
+    console.log('[NoteManager] handleSubmit values:', values);
     try {
+      // 转换字段名：content_ciphertext -> content
+      const noteData = {
+        ...values,
+        content: values.content_ciphertext,
+      };
+      delete (noteData as any).content_ciphertext;
+
+      console.log('[NoteManager] 提交数据:', noteData);
+
       if (editingNote && editingNote.id) {
-        const res = await notesService.updateNote(editingNote.id, values);
-        if (res.success) message.success('更新成功'); else message.error(res.error || '更新失败');
+        const res = await notesService.updateNote(editingNote.id, noteData);
+        if (res.success) message.success('更新成功');
+        else message.error(res.error || '更新失败');
       } else {
-        const res = await notesService.createNote(values);
-        if (res.success) message.success('添加成功'); else message.error(res.error || '添加失败');
+        const res = await notesService.createNote(noteData);
+        if (res.success) message.success('添加成功');
+        else message.error(res.error || '添加失败');
       }
       setEditVisible(false);
       loadNotes(selectedGroupId);
     } catch (e) {
+      console.error('[NoteManager] 保存失败:', e);
       message.error(editingNote ? '更新失败' : '添加失败');
     }
   };
 
   const columns = [
     { title: '标题', dataIndex: 'title', key: 'title' },
-    { title: '分组', dataIndex: 'group_id', key: 'group_id', render: (gid: number) => {
-      const g = groups.find(x => x.id === gid);
-      return g ? <Tag color={g.color || '蓝色'}>{g.name}</Tag> : '-';
-    } },
-    { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => {
-      const fmt = (s?: string) => {
-        if (!s) return '-';
-        const d = new Date(s);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${day} ${hh}:${mm}`;
-      };
-      return <span title={t}>{fmt(t)}</span>;
-    } },
-    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', render: (t: string) => {
-      const fmt = (s?: string) => {
-        if (!s) return '-';
-        const d = new Date(s);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${day} ${hh}:${mm}`;
-      };
-      return <span title={t}>{fmt(t)}</span>;
-    } },
-    { title: '操作', key: 'action', render: (_: any, record: NoteRecord) => (
-      <Space>
-        <Button type="link" onClick={() => {
-          setViewText(record.content_ciphertext || '');
-          setSelectedLineSet(new Set());
-          setViewVisible(true);
-        }}>查看</Button>
-        <Button type="link" onClick={() => handleEdit(record)}>编辑</Button>
-        <Button type="link" danger onClick={() => handleDelete(record.id)}>删除</Button>
-      </Space>
-    ) }
+    {
+      title: '分组',
+      dataIndex: 'group_id',
+      key: 'group_id',
+      render: (gid: number) => {
+        const g = groups.find((x) => x.id === gid);
+        return g ? <Tag color={g.color || '蓝色'}>{g.name}</Tag> : '-';
+      },
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (t: string) => {
+        const fmt = (s?: string) => {
+          if (!s) return '-';
+          // SQLite returns "YYYY-MM-DD HH:MM:SS", which is not ISO 8601 compliant for WebKit (Safari/Tauri)
+          // We replace the space with 'T' to make it parseable: "YYYY-MM-DDTHH:MM:SS"
+          const validDateStr = s.replace(' ', 'T');
+          const d = new Date(validDateStr);
+          if (isNaN(d.getTime())) return s; // Fallback if parsing fails
+
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          return `${y}-${m}-${day} ${hh}:${mm}`;
+        };
+        return <span title={t}>{fmt(t)}</span>;
+      },
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updated_at',
+      key: 'updated_at',
+      render: (t: string) => {
+        const fmt = (s?: string) => {
+          if (!s) return '-';
+          const validDateStr = s.replace(' ', 'T');
+          const d = new Date(validDateStr);
+          if (isNaN(d.getTime())) return s;
+
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          return `${y}-${m}-${day} ${hh}:${mm}`;
+        };
+        return <span title={t}>{fmt(t)}</span>;
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: NoteRecord) => (
+        <Space>
+          <Button
+            type="link"
+            onClick={() => {
+              console.log('[ViewNote] ========== 查看便签 ==========');
+              console.log(
+                '[ViewNote] Record:',
+                JSON.stringify(record, null, 2)
+              );
+              console.log('[ViewNote] record.content:', record.content);
+              console.log(
+                '[ViewNote] record.content_ciphertext:',
+                (record as any).content_ciphertext
+              );
+              console.log('[ViewNote] All keys:', Object.keys(record));
+              // 后端返回的是解密后的 content 字段
+              const content = record.content || '';
+              console.log('[ViewNote] Content to show:', content);
+              setViewText(content);
+              setSelectedLineSet(new Set());
+              setViewVisible(true);
+            }}
+          >
+            查看
+          </Button>
+          <Button type="link" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
+          <Button type="link" danger onClick={() => handleDelete(record.id)}>
+            删除
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   return (
     <div>
       {!hideTopFilter && (
         <Space style={{ marginBottom: 12 }}>
-          <Select placeholder="选择分组" allowClear style={{ width: 240 }} value={selectedGroupId} onChange={(v) => { setSelectedGroupId(v); loadNotes(v); }}>
-            {groups.map(g => <Select.Option key={g.id} value={g.id!}>{g.name}</Select.Option>)}
+          <Select
+            placeholder="选择分组"
+            allowClear
+            style={{ width: 240 }}
+            value={selectedGroupId}
+            onChange={(v) => {
+              setSelectedGroupId(v);
+              loadNotes(v);
+            }}
+          >
+            {groups.map((g) => (
+              <Select.Option key={g.id} value={g.id!}>
+                {g.name}
+              </Select.Option>
+            ))}
           </Select>
-          <Button type="primary" onClick={handleAdd}>新建便笺</Button>
+          <Button type="primary" onClick={handleAdd}>
+            新建便笺
+          </Button>
         </Space>
       )}
-      <Table columns={columns as any} dataSource={notes} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
+      <Table
+        columns={columns as any}
+        dataSource={notes}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
-      <Modal title={editingNote ? '编辑便笺' : '新建便笺'} open={editVisible} onCancel={() => setEditVisible(false)} footer={null} width={900}>
+      <Modal
+        title={editingNote ? '编辑便笺' : '新建便笺'}
+        open={editVisible}
+        onCancel={() => setEditVisible(false)}
+        footer={null}
+        width={900}
+      >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="title" label="标题">
             <Input placeholder="标题" ref={titleInputRef} />
           </Form.Item>
-          <Form.Item name="content_ciphertext" label="正文" rules={[{ required: true, message: '请输入正文' }]}> 
-            <Input.TextArea placeholder="自由文本" autoSize={{ minRows: 12, maxRows: 32 }} />
+          <Form.Item
+            name="content_ciphertext"
+            label="正文"
+            rules={[{ required: true, message: '请输入正文' }]}
+          >
+            <Input.TextArea
+              placeholder="自由文本"
+              autoSize={{ minRows: 12, maxRows: 32 }}
+            />
           </Form.Item>
-          <Form.Item name="group_id" label="分组" rules={[{ required: true, message: '请选择分组' }]}> 
+          <Form.Item
+            name="group_id"
+            label="分组"
+            rules={[{ required: true, message: '请选择分组' }]}
+          >
             <Select allowClear placeholder="选择分组">
-              {groups.map(g => <Select.Option key={g.id} value={g.id!}>{g.name}</Select.Option>)}
+              {groups.map((g) => (
+                <Select.Option key={g.id} value={g.id!}>
+                  {g.name}
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">保存</Button>
+              <Button type="primary" htmlType="submit">
+                保存
+              </Button>
               <Button onClick={() => setEditVisible(false)}>取消</Button>
             </Space>
           </Form.Item>
@@ -231,15 +389,38 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
         width={900}
       >
         <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
-          <Button onClick={async () => { await navigator.clipboard.writeText(viewText || ''); message.success('已复制全部'); }}>复制全部</Button>
-          <Button type="primary" onClick={async () => {
-            const lines = (viewText || '').split(/\r?\n/);
-            const selected = Array.from(selectedLineSet).sort((a,b)=>a-b).map(i => lines[i] ?? '').join('\n');
-            await navigator.clipboard.writeText(selected);
-            message.success('已复制所选行');
-          }} disabled={selectedLineSet.size===0}>复制所选行</Button>
+          <Button
+            onClick={async () => {
+              await navigator.clipboard.writeText(viewText || '');
+              message.success('已复制全部');
+            }}
+          >
+            复制全部
+          </Button>
+          <Button
+            type="primary"
+            onClick={async () => {
+              const lines = (viewText || '').split(/\r?\n/);
+              const selected = Array.from(selectedLineSet)
+                .sort((a, b) => a - b)
+                .map((i) => lines[i] ?? '')
+                .join('\n');
+              await navigator.clipboard.writeText(selected);
+              message.success('已复制所选行');
+            }}
+            disabled={selectedLineSet.size === 0}
+          >
+            复制所选行
+          </Button>
         </div>
-        <div style={{ maxHeight: 520, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 6 }}>
+        <div
+          style={{
+            maxHeight: 520,
+            overflow: 'auto',
+            border: '1px solid #f0f0f0',
+            borderRadius: 6,
+          }}
+        >
           {(viewText || '').split(/\r?\n/).map((line, idx) => {
             const selected = selectedLineSet.has(idx);
             return (
@@ -247,7 +428,8 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
                 key={idx}
                 onClick={() => {
                   const s = new Set(selectedLineSet);
-                  if (s.has(idx)) s.delete(idx); else s.add(idx);
+                  if (s.has(idx)) s.delete(idx);
+                  else s.add(idx);
                   setSelectedLineSet(s);
                 }}
                 style={{
@@ -257,11 +439,17 @@ const NoteManager: React.FC<{ onClose: () => void; selectedGroupId?: number; ext
                   background: selected ? '#e6f4ff' : '#fff',
                   cursor: 'pointer',
                   borderBottom: '1px solid #f5f5f5',
-                  fontFamily: 'monospace'
+                  fontFamily: 'monospace',
                 }}
               >
-                <span style={{ width: 40, color: '#999' }}>{String(idx+1).padStart(2,' ')}</span>
-                <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{line}</span>
+                <span style={{ width: 40, color: '#999' }}>
+                  {String(idx + 1).padStart(2, ' ')}
+                </span>
+                <span
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                >
+                  {line}
+                </span>
               </div>
             );
           })}

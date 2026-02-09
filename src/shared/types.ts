@@ -6,7 +6,7 @@ export interface PasswordItem {
   url?: string | null;
   notes?: string | null;
   group_id?: number | null;
-  groupName?: string | null;  // Tauri 自动转换为 camelCase
+  groupName?: string | null; // Tauri 自动转换为 camelCase
   created_at?: string;
   updated_at?: string;
 }
@@ -28,6 +28,7 @@ export interface Group {
   icon?: string;
   order_index?: number;
   sort?: number;
+  sort_order?: number; // 后端使用 snake_case，兼容两种命名
   created_at?: string;
   updated_at?: string;
 }
@@ -49,7 +50,7 @@ export interface SecureRecordGroup {
 export interface SecureRecord {
   id?: number;
   title?: string | null;
-  content_ciphertext: string;
+  content: string;
   group_id?: number | null;
   pinned?: boolean;
   archived?: boolean;
@@ -116,7 +117,11 @@ export interface MasterPasswordState {
   lastUnlockAt?: string;
 }
 
-export type AutoExportFrequency = 'every_minute' | 'daily' | 'weekly' | 'monthly';
+export type AutoExportFrequency =
+  | 'every_minute'
+  | 'daily'
+  | 'weekly'
+  | 'monthly';
 
 export interface AutoExportConfig {
   enabled: boolean;

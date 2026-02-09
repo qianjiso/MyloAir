@@ -3,9 +3,9 @@
 //! 实现 AES-256-CBC 加密/解密，与 Electron 版本兼容
 
 use aes::Aes256;
-use cbc::{Decryptor, Encryptor};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use cbc::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use cbc::{Decryptor, Encryptor};
 use rand::Rng;
 
 type Aes256CbcEnc = Encryptor<Aes256>;
@@ -16,7 +16,7 @@ pub struct EncryptionService {
     key: [u8; 32],
 }
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 impl EncryptionService {
     /// 创建新的加密服务实例（基于用户密码）
@@ -43,9 +43,10 @@ impl EncryptionService {
         // 1. 从安全存储（Keychain/Credential Manager）读取
         // 2. 如果不存在，生成随机密钥并安全存储
         // 3. 可以结合设备标识增加安全性
-        
-        // 当前使用固定密钥（开发阶段）
-        "myloair-app-encryption-key-v1-secure".to_string()
+
+        // ⚠️ 重要：必须与 Electron 版本使用相同的密钥，以兼容已有数据
+        // Electron 版本使用的密钥是：'default-encryption-key-32-chars-long'
+        "default-encryption-key-32-chars-long".to_string()
     }
 
     /// 加密文本
@@ -70,7 +71,8 @@ impl EncryptionService {
         let cipher = Aes256CbcEnc::new(&self.key.into(), &iv.into());
         let mut buffer = padded;
         let buffer_len = buffer.len();
-        cipher.encrypt_padded_mut::<aes::cipher::block_padding::NoPadding>(&mut buffer, buffer_len)
+        cipher
+            .encrypt_padded_mut::<aes::cipher::block_padding::NoPadding>(&mut buffer, buffer_len)
             .map_err(|e| format!("加密失败: {:?}", e))?;
 
         // IV + 密文
@@ -87,7 +89,8 @@ impl EncryptionService {
         }
 
         // Base64 解码
-        let data = BASE64.decode(ciphertext)
+        let data = BASE64
+            .decode(ciphertext)
             .map_err(|e| format!("Base64 解码失败: {}", e))?;
 
         if data.len() < 17 {
@@ -95,14 +98,14 @@ impl EncryptionService {
         }
 
         // 提取 IV 和密文
-        let iv: [u8; 16] = data[..16].try_into()
-            .map_err(|_| "IV 长度错误")?;
+        let iv: [u8; 16] = data[..16].try_into().map_err(|_| "IV 长度错误")?;
         let encrypted = &data[16..];
 
         // 解密
         let cipher = Aes256CbcDec::new(&self.key.into(), &iv.into());
         let mut buffer = encrypted.to_vec();
-        cipher.decrypt_padded_mut::<aes::cipher::block_padding::NoPadding>(&mut buffer)
+        cipher
+            .decrypt_padded_mut::<aes::cipher::block_padding::NoPadding>(&mut buffer)
             .map_err(|e| format!("解密失败: {:?}", e))?;
 
         // 移除 PKCS7 填充
@@ -112,8 +115,7 @@ impl EncryptionService {
         }
         buffer.truncate(buffer.len() - padding_len);
 
-        String::from_utf8(buffer)
-            .map_err(|e| format!("UTF-8 解码失败: {}", e))
+        String::from_utf8(buffer).map_err(|e| format!("UTF-8 解码失败: {}", e))
     }
 }
 
@@ -125,11 +127,11 @@ mod tests {
     fn test_encrypt_decrypt() {
         let service = EncryptionService::new("test_key_12345");
         let plaintext = "Hello, 世界!";
-        
+
         let encrypted = service.encrypt(plaintext).unwrap();
         assert!(!encrypted.is_empty());
         assert_ne!(encrypted, plaintext);
-        
+
         let decrypted = service.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, plaintext);
     }
@@ -137,10 +139,10 @@ mod tests {
     #[test]
     fn test_empty_string() {
         let service = EncryptionService::new("test_key");
-        
+
         let encrypted = service.encrypt("").unwrap();
         assert_eq!(encrypted, "");
-        
+
         let decrypted = service.decrypt("").unwrap();
         assert_eq!(decrypted, "");
     }

@@ -82,14 +82,49 @@ pub async fn add_group(state: State<'_, AppState>, group: Group) -> Result<Value
 pub async fn update_group(
     state: State<'_, AppState>,
     id: i64,
-    mut group: Group,
+    group: serde_json::Value,  // 先接收为 JSON Value 查看原始数据
 ) -> Result<Value, String> {
-    log::info!("update_group called: id={}", id);
-    group.id = Some(id); // Ensure ID matches
-    state.db.update_group(&group).map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({
-        "success": true
-    }))
+    log::info!("[update_group] ========== 开始 ==========");
+    log::info!("[update_group] 接收到的 id={}", id);
+    log::info!("[update_group] 接收到的原始 JSON: {}", group);
+    
+    // 手动解析（兼容 sort 和 sort_order 两种字段名）
+    let name = group.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let parent_id = group.get("parent_id").and_then(|v| v.as_i64());
+    let sort_order = group.get("sort_order")
+        .and_then(|v| v.as_i64())
+        .or_else(|| group.get("sort").and_then(|v| v.as_str()?.parse().ok()))
+        .map(|v| v as i32);
+    let color = group.get("color").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let icon = group.get("icon").and_then(|v| v.as_str()).map(|s| s.to_string());
+    
+    log::info!("[update_group] 手动解析结果: name={:?}, parent_id={:?}, sort_order={:?}, color={:?}", 
+        name, parent_id, sort_order, color);
+    
+    let mut parsed_group = Group {
+        id: Some(id),
+        name,
+        parent_id,
+        icon,
+        color,
+        sort_order,
+        created_at: None,
+        updated_at: None,
+    };
+    
+    log::info!("[update_group] 准备更新数据库...");
+    match state.db.update_group(&parsed_group) {
+        Ok(_) => {
+            log::info!("[update_group] 数据库更新成功");
+            Ok(serde_json::json!({
+                "success": true
+            }))
+        }
+        Err(e) => {
+            log::error!("[update_group] 数据库更新失败: {}", e);
+            Err(e.to_string())
+        }
+    }
 }
 
 /// 删除分组

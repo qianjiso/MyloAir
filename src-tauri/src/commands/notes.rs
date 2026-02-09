@@ -19,12 +19,25 @@ pub struct SecureRecordGroupWithChildren {
 
 /// 辅助函数：解密笔记内容
 fn decrypt_note_content(state: &State<'_, AppState>, note: &mut SecureRecord) {
+    log::info!("[decrypt_note_content] 开始解密，note.id={:?}", note.id);
     if let Some(cipher) = &note.content {
         if !cipher.is_empty() {
-            if let Ok(plain) = state.encryption.decrypt(cipher) {
-                note.content = Some(plain);
+            log::info!("[decrypt_note_content] 密文长度: {}", cipher.len());
+            match state.encryption.decrypt(cipher) {
+                Ok(plain) => {
+                    log::info!("[decrypt_note_content] 解密成功，明文长度: {}", plain.len());
+                    note.content = Some(plain);
+                }
+                Err(e) => {
+                    log::error!("[decrypt_note_content] 解密失败: {}", e);
+                    // 解密失败时保留原密文，让前端可以看到原始数据
+                }
             }
+        } else {
+            log::info!("[decrypt_note_content] 密文为空");
         }
+    } else {
+        log::info!("[decrypt_note_content] content 为 None");
     }
 }
 
@@ -105,9 +118,18 @@ pub async fn add_note_group(state: State<'_, AppState>, group: SecureRecordGroup
 
 #[tauri::command]
 pub async fn update_note_group(state: State<'_, AppState>, id: i64, mut group: SecureRecordGroup) -> Result<Value, String> {
+    log::info!("[update_note_group] 开始更新分组, id={}, group={:?}", id, group);
     group.id = Some(id);
-    state.db.update_note_group(&group).map_err(|e| e.to_string())?;
-    Ok(json!({ "success": true }))
+    match state.db.update_note_group(&group) {
+        Ok(_) => {
+            log::info!("[update_note_group] 更新成功, id={}", id);
+            Ok(json!({ "success": true }))
+        }
+        Err(e) => {
+            log::error!("[update_note_group] 更新失败, id={}, error={}", id, e);
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
@@ -120,10 +142,14 @@ pub async fn delete_note_group(state: State<'_, AppState>, id: i64) -> Result<Va
 
 #[tauri::command]
 pub async fn get_notes(state: State<'_, AppState>, group_id: Option<i64>) -> Result<Vec<SecureRecord>, String> {
+    log::info!("[get_notes] 开始获取笔记列表, group_id={:?}", group_id);
     let mut notes = state.db.get_notes(group_id).map_err(|e| e.to_string())?;
+    log::info!("[get_notes] 从数据库获取到 {} 条笔记", notes.len());
     for note in &mut notes {
+        log::info!("[get_notes] 处理笔记 id={:?}, title={:?}", note.id, note.title);
         decrypt_note_content(&state, note);
     }
+    log::info!("[get_notes] 完成，返回 {} 条笔记", notes.len());
     Ok(notes)
 }
 

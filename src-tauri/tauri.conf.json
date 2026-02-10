@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MyloAir",
   "version": "1.0.0",
-  "identifier": "com.yourcompany.myloair",
+  "identifier": "com.yourcompany.myloair.dev",
   "build": {
     "frontendDist": "../dist/renderer",
     "devUrl": "http://localhost:3000",
@@ -42,7 +42,9 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:myloair.db"]
+      "preload": [
+        "sqlite:myloair.db"
+      ]
     }
   }
 }

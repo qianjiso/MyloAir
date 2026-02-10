@@ -118,11 +118,45 @@ pub async fn security_update_master_password(
 
 #[tauri::command]
 pub async fn security_clear_master_password(
-    _state: State<'_, AppState>,
-    _current_password: String,
+    state: State<'_, AppState>,
+    current_password: String,
 ) -> Result<Value, String> {
-    // TODO impl
-    Ok(json!({ "success": false, "error": "尚未实现" }))
+    // 1. 验证当前密码
+    let db_hash_opt = state.db.get_master_password_hash().map_err(|e| e.to_string())?;
+    
+    if let Some(stored_hash) = db_hash_opt {
+        let input_hash = hash_password(&current_password);
+        if stored_hash != input_hash {
+            return Ok(json!({
+                "success": false,
+                "error": "当前主密码错误"
+            }));
+        }
+    } else {
+        return Ok(json!({
+            "success": false,
+            "error": "尚未设置主密码"
+        }));
+    }
+    
+    // 2. 清除主密码
+    state.db.clear_master_password().map_err(|e| e.to_string())?;
+    
+    // 3. 解锁 UI
+    {
+        let mut ui_locked = state.ui_locked.lock().map_err(|_| "Failed to lock state".to_string())?;
+        *ui_locked = false;
+    }
+    
+    // 4. 返回新状态
+    let new_state = security_get_state(state).await?;
+    
+    log::info!("Master password cleared successfully");
+    
+    Ok(json!({
+        "success": true,
+        "state": new_state
+    }))
 }
 
 #[tauri::command]

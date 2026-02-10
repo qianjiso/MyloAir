@@ -455,6 +455,24 @@ impl DatabaseService {
         Ok(())
     }
 
+    /// 清除主密码
+    pub fn clear_master_password(&self) -> Result<(), String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        
+        conn.execute(
+            "UPDATE master_password 
+             SET password_hash = NULL, 
+                 hint = NULL,
+                 require_password = 0,
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [],
+        ).map_err(|e| e.to_string())?;
+        
+        log::info!("Master password cleared successfully");
+        Ok(())
+    }
+
     // --- Notes ---
 
     pub fn get_notes(

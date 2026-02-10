@@ -704,7 +704,7 @@ const App: React.FC = () => {
           <div className="app-toolbar">
             <div className="toolbar-left">
               <div className="logo">
-                <KeyOutlined /> Mylo
+                <KeyOutlined /> MyloAir
               </div>
               <Segmented
                 value={currentModule}

@@ -27,31 +27,32 @@ interface ImportExportModalProps {
   onClose: () => void;
 }
 
- 
-
-const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose }) => {
+const ImportExportModal: React.FC<ImportExportModalProps> = ({
+  visible,
+  onClose,
+}) => {
   const [mode, setMode] = useState<'export' | 'import'>('export');
   const [exportForm] = Form.useForm();
   const [importForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   // 预览已取消
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  
 
   // 导出数据
   const handleExport = async () => {
     try {
       setLoading(true);
       const values = await exportForm.validateFields();
-      
+
       const data = await backupService.exportData(values as any);
-      const blob = new Blob([data as unknown as BlobPart], { 
-        type: values.format === 'json' ? 'application/json' : 'application/octet-stream'
+      const isZip = values.format === 'encrypted_zip';
+      const blob = new Blob([data as unknown as BlobPart], {
+        type: isZip ? 'application/zip' : 'application/json',
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `passwords_backup_${new Date().toISOString().split('T')[0]}.${values.format === 'json' ? 'json' : 'zip'}`;
+      link.download = `passwords_backup_${new Date().toISOString().split('T')[0]}.${isZip ? 'zip' : 'json'}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -79,12 +80,12 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
       // 读取文件内容
       const arrayBuffer = await uploadFile.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
-      
+
       const result = await backupService.importData(uint8Array, {
         format: fmt,
         mergeStrategy: 'merge',
         validateIntegrity: false,
-        dryRun: false
+        dryRun: false,
       });
       message.success(`导入成功，共处理 ${result.imported || 0} 条记录`);
     } catch (error) {
@@ -136,7 +137,14 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
       ]}
     >
       <div style={{ marginBottom: 16 }}>
-        <Select value={mode} onChange={(v) => { setMode(v as any); setUploadFile(null); }} style={{ width: 160 }}>
+        <Select
+          value={mode}
+          onChange={(v) => {
+            setMode(v as any);
+            setUploadFile(null);
+          }}
+          style={{ width: 160 }}
+        >
           <Option value="export">导出数据</Option>
           <Option value="import">导入数据</Option>
         </Select>
@@ -147,7 +155,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
           form={exportForm}
           layout="vertical"
           initialValues={{
-            format: 'json'
+            format: 'json',
           }}
         >
           <Form.Item
@@ -165,7 +173,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
               <Option value="encrypted_zip">
                 <Space>
                   <LockOutlined />
-                  加密ZIP（仅包含备份JSON）
+                  加密ZIP（AES-256加密）
                 </Space>
               </Option>
             </Select>
@@ -176,25 +184,33 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
             noStyle
             shouldUpdate={(prev, cur) => prev.format !== cur.format}
           >
-            {({ getFieldValue }) => ['encrypted_zip'].includes(getFieldValue('format')) ? (
-              <Form.Item
-                label="备份包密码"
-                name="archivePassword"
-                rules={[{ required: true, message: '请设置备份包密码' }, { min: 4, message: '至少4位' }]}
-              >
-                <Input.Password style={{ width: '100%' }} placeholder="请输入密码" />
-              </Form.Item>
-            ) : null}
+            {({ getFieldValue }) =>
+              ['encrypted_zip'].includes(getFieldValue('format')) ? (
+                <Form.Item
+                  label="备份包密码"
+                  name="archivePassword"
+                  rules={[
+                    { required: true, message: '请设置备份包密码' },
+                    { min: 4, message: '至少4位' },
+                  ]}
+                >
+                  <Input.Password
+                    style={{ width: '100%' }}
+                    placeholder="请输入密码"
+                  />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
 
           <Form.Item
             noStyle
             shouldUpdate={(prev, cur) => prev.format !== cur.format}
           >
-            {({ getFieldValue }) => getFieldValue('format') === 'zip' ? null : null}
+            {({ getFieldValue }) =>
+              getFieldValue('format') === 'zip' ? null : null
+            }
           </Form.Item>
-
-          
 
           {/* 已取消密码强度过滤与压缩级别选项 */}
         </Form>
@@ -203,7 +219,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
           form={importForm}
           layout="vertical"
           initialValues={{
-            format: 'json'
+            format: 'json',
           }}
         >
           <Form.Item label="选择文件" required>
@@ -218,13 +234,15 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ visible, onClose 
 
           {/* 已选择文件提示取消 */}
 
-          <Form.Item label="文件格式" name="format" tooltip="指定导入文件的格式">
+          <Form.Item
+            label="文件格式"
+            name="format"
+            tooltip="指定导入文件的格式"
+          >
             <Select>
               <Option value="json">JSON格式</Option>
             </Select>
           </Form.Item>
-
-          
 
           {/* 导入选项取消，默认智能合并 */}
         </Form>

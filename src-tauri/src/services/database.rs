@@ -473,6 +473,28 @@ impl DatabaseService {
         Ok(())
     }
 
+    /// 获取主密码配置（包括 require_password 和 hint）
+    pub fn get_master_password_config(&self) -> Result<(bool, Option<String>, bool), String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT password_hash, hint, require_password FROM master_password WHERE id = 1")
+            .map_err(|e| e.to_string())?;
+
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let password_hash: Option<String> = row.get(0).map_err(|e| e.to_string())?;
+            let hint: Option<String> = row.get(1).map_err(|e| e.to_string())?;
+            let require_password: i32 = row.get(2).map_err(|e| e.to_string())?;
+            
+            let has_master = password_hash.is_some();
+            Ok((has_master, hint, require_password != 0))
+        } else {
+            // 如果记录不存在，返回默认值
+            Ok((false, None, false))
+        }
+    }
+
     // --- Notes ---
 
     pub fn get_notes(

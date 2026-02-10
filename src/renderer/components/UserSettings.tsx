@@ -166,10 +166,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         reportError('SETTINGS_LOAD_FAILED', '加载设置失败', error);
       } finally {
         setLoading(false);
-    }
-  };
-  load();
-}, [form, mapSettingsToForm]);
+      }
+    };
+    load();
+  }, [form, mapSettingsToForm]);
 
   const handleSave = async () => {
     try {
@@ -187,7 +187,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         setLoading(false);
         return;
       }
-      
+
       if (values.autoLockMinutes != null) {
         const seconds = Math.max(1, Number(values.autoLockMinutes)) * 60;
         await settingsService.setSetting('security.auto_lock_timeout', String(seconds), 'number', 'security', '自动锁定时间（秒）');
@@ -351,27 +351,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       <InputNumber
                         min={1}
                         max={120}
-                        style={{ width: '100%' }}
-                        placeholder="5"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      label="要求主密码"
-                      name="requireMasterPassword"
-                      tooltip="是否需要主密码才能访问应用"
-                      valuePropName="checked"
-                      style={{ marginBottom: 12 }}
-                    >
-                      <Switch />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <div style={{ background: '#fafbff', border: '1px dashed #e3e7ff', borderRadius: 8, padding: 12 }}>
-                  <Space size="small">
-                    <Tag color={securityState?.hasMasterPassword ? 'green' : 'red'}>
-                      {securityState?.hasMasterPassword ? '已设置' : '未设置'}
                     </Tag>
                     <Typography.Text strong>
                       {securityState?.hasMasterPassword ? '主密码保护开启' : '主密码未开启'}

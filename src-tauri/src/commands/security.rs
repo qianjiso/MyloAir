@@ -19,35 +19,21 @@ fn hash_password(password: &str) -> String {
 /// 获取安全状态
 #[tauri::command]
 pub async fn security_get_state(state: State<'_, AppState>) -> Result<Value, String> {
-    let has_master = state.db.has_master_password().map_err(|e| e.to_string())?;
-    // TODO: Fetch require_password, hint, auto_lock from DB. 
-    // Currently DatabaseService.has_master_password only checks existence.
-    // We need more fields.
-    // Let's implement a simple fetch for now assuming default logic.
-    // Ideally update DatabaseService to return full config.
-    // For now we assume:
-    // If has_master, fetch hint.
+    // 从数据库获取主密码配置
+    let (has_master, hint, require_password) = state.db.get_master_password_config()
+        .map_err(|e| e.to_string())?;
     
-    // Quick hack: Use sql query directly or extend DB service?
-    // Extending DB service is better but I am in command refactor.
-    // Let's trust `has_master` and return fetched hint if possible.
-    // But `get_master_password_hash` doesn't return hint/require_password.
-    // I will modify this later. For now, minimal working implementation.
-    
-    let require_master = true; // Default or fetch
-    let hint: Option<String> = None; 
+    // TODO: 从数据库读取 auto_lock_minutes，目前使用默认值
     let auto_lock = 5;
 
     let payload = json!({
         "hasMasterPassword": has_master,
-        "requireMasterPassword": if has_master { require_master } else { false },
+        "requireMasterPassword": require_password,
         "hint": hint,
         "autoLockMinutes": auto_lock,
         "lastUnlockAt": Option::<String>::None
     });
     
-    // Note: Frontend helper (security.ts) might verify result structure.
-    // But typical invoke returns the object directly.
     Ok(payload)
 }
 

@@ -71,9 +71,9 @@ const NoteGroupTree: React.FC<NoteGroupTreeProps> = ({
               label: '新建子分组',
               onClick: () => {
                 /* 在外部通过弹窗完成 */ onEditGroup({
-                  ...group,
-                  parent_id: group.id,
-                });
+                ...group,
+                parent_id: group.id,
+              });
               },
             },
             {
@@ -215,21 +215,21 @@ const NoteGroupTree: React.FC<NoteGroupTreeProps> = ({
           );
 
           const getSiblings = (tree: any[], pid: number | null) => {
-             if (pid === null) {
-                 return tree.filter(n => (n.parent_id ?? null) === null);
-             }
-             const findNode = (nodes: any[], targetId: number): any => {
-                 for (const n of nodes) {
-                     if (n.id === targetId) return n;
-                     if (n.children) {
-                         const found = findNode(n.children, targetId);
-                         if (found) return found;
-                     }
-                 }
-                 return null;
-             };
-             const parentNode = findNode(tree, pid);
-             return parentNode ? [...(parentNode.children || [])] : [];
+            if (pid === null) {
+              return tree.filter(n => (n.parent_id ?? null) === null);
+            }
+            const findNode = (nodes: any[], targetId: number): any => {
+              for (const n of nodes) {
+                if (n.id === targetId) return n;
+                if (n.children) {
+                  const found = findNode(n.children, targetId);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            const parentNode = findNode(tree, pid);
+            return parentNode ? [...(parentNode.children || [])] : [];
           };
 
           const siblings = getSiblings(groupTree as any, newParentId);
@@ -310,39 +310,47 @@ const NoteGroupTree: React.FC<NoteGroupTreeProps> = ({
             return;
           }
 
-          console.log('[NoteGroupTree] 开始更新同级分组排序...');
-          for (let i = 0; i < newOrder.length; i++) {
-            const id = (newOrder[i] as any).id as number;
-            if (id === dragKey) continue; // 跳过已更新的拖动分组
+          // 批量更新同级分组的排序（只更新真正变化的分组）
+          console.log('[NoteGroupTree] 开始批量更新排序...');
 
-            const g = findLocalNoteGroup(id);
-            const originalSortOrder = g?.sort_order;
+          // 计算需要更新的分组
+          const updates = newOrder
+            .map((item, index) => {
+              const group = findLocalNoteGroup(item.id as number);
+              return {
+                id: item.id as number,
+                group,
+                newSortOrder: index,
+                oldSortOrder: group?.sort_order,
+              };
+            })
+            .filter(item => {
+              // 只更新 sort_order 真正变化的分组（排除已经更新过的 dragKey）
+              return item.id !== dragKey && item.oldSortOrder !== item.newSortOrder;
+            });
 
-            console.log(
-              `[NoteGroupTree] 更新分组 ${id} (${g?.name}): sort_order ${originalSortOrder} -> ${i}`
+          console.log('[NoteGroupTree] 需要更新的分组:', updates.map(u => ({
+            id: u.id,
+            name: u.group?.name,
+            oldSort: u.oldSortOrder,
+            newSort: u.newSortOrder
+          })));
+
+          // 并发更新所有需要更新的分组
+          if (updates.length > 0) {
+            await Promise.all(
+              updates.map(item =>
+                window.electronAPI.updateNoteGroup(item.id, {
+                  name: item.group?.name || '',
+                  parent_id: item.group?.parent_id,
+                  color: item.group?.color,
+                  sort_order: item.newSortOrder,
+                })
+              )
             );
-
-            // 显式构建对象
-            const siblingUpdate: any = {
-              name: g?.name || '',
-              sort_order: i,
-              parent_id: g?.parent_id,
-            };
-            if (g?.color) {
-              siblingUpdate.color = g.color;
-            }
-            console.log(
-              `[NoteGroupTree] 发送 updateNoteGroup 请求:`,
-              id,
-              siblingUpdate
-            );
-
-            const updateResult = await window.electronAPI.updateNoteGroup(
-              id,
-              siblingUpdate
-            );
-
-            console.log(`[NoteGroupTree] 更新分组 ${id} 结果:`, updateResult);
+            console.log('[NoteGroupTree] 批量更新完成');
+          } else {
+            console.log('[NoteGroupTree] 无需更新其他分组');
           }
 
           console.log('[NoteGroupTree] 刷新分组树...');

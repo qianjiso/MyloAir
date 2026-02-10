@@ -204,21 +204,21 @@ const GroupTree: React.FC<GroupTreeProps> = ({
 
           // Correctly find siblings by locating the parent node in the tree
           const getSiblings = (tree: any[], pid: number | null) => {
-             if (pid === null) {
-                 return tree.filter(n => (n.parent_id ?? null) === null);
-             }
-             const findNode = (nodes: any[], targetId: number): any => {
-                 for (const n of nodes) {
-                     if (n.id === targetId) return n;
-                     if (n.children) {
-                         const found = findNode(n.children, targetId);
-                         if (found) return found;
-                     }
-                 }
-                 return null;
-             };
-             const parentNode = findNode(tree, pid);
-             return parentNode ? [...(parentNode.children || [])] : [];
+            if (pid === null) {
+              return tree.filter(n => (n.parent_id ?? null) === null);
+            }
+            const findNode = (nodes: any[], targetId: number): any => {
+              for (const n of nodes) {
+                if (n.id === targetId) return n;
+                if (n.children) {
+                  const found = findNode(n.children, targetId);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            const parentNode = findNode(tree, pid);
+            return parentNode ? [...(parentNode.children || [])] : [];
           };
 
           const siblings = getSiblings(groupTree, newParentId);
@@ -302,41 +302,47 @@ const GroupTree: React.FC<GroupTreeProps> = ({
             return;
           }
 
-          // 更新同级其他分组的排序
-          console.log('[GroupTree] 开始更新同级分组排序...');
-          for (let i = 0; i < newOrder.length; i++) {
-            const id = (newOrder[i] as any).id as number;
-            if (id === dragKey) continue; // 跳过已更新的拖动分组
+          // 批量更新同级分组的排序（只更新真正变化的分组）
+          console.log('[GroupTree] 开始批量更新排序...');
 
-            const g = findLocalGroup(id);
-            const originalSortOrder = g?.sort_order;
+          // 计算需要更新的分组
+          const updates = newOrder
+            .map((item, index) => {
+              const group = findLocalGroup(item.id as number);
+              return {
+                id: item.id as number,
+                group,
+                newSortOrder: index,
+                oldSortOrder: group?.sort_order,
+              };
+            })
+            .filter(item => {
+              // 只更新 sort_order 真正变化的分组（排除已经更新过的 dragKey）
+              return item.id !== dragKey && item.oldSortOrder !== item.newSortOrder;
+            });
 
-            console.log(
-              `[GroupTree] 更新分组 ${id} (${g?.name}): sort_order ${originalSortOrder} -> ${i}`
+          console.log('[GroupTree] 需要更新的分组:', updates.map(u => ({
+            id: u.id,
+            name: u.group?.name,
+            oldSort: u.oldSortOrder,
+            newSort: u.newSortOrder
+          })));
+
+          // 并发更新所有需要更新的分组
+          if (updates.length > 0) {
+            await Promise.all(
+              updates.map(item =>
+                window.electronAPI.updateGroup(item.id, {
+                  name: item.group?.name || '',
+                  parent_id: item.group?.parent_id,
+                  color: item.group?.color,
+                  sort_order: item.newSortOrder,
+                })
+              )
             );
-
-            // 显式构建 Group 对象，同时发送 sort 和 sort_order
-            const siblingUpdate: any = {
-              name: g?.name || '',
-              sort: Number(i), // 确保是数字
-              sort_order: Number(i), // 同时发送两种字段名
-              parent_id: g?.parent_id,
-            };
-            if (g?.color) {
-              siblingUpdate.color = g.color;
-            }
-            console.log(
-              `[GroupTree] 发送 updateGroup 请求:`,
-              id,
-              siblingUpdate
-            );
-
-            const updateResult = await window.electronAPI.updateGroup(
-              id,
-              siblingUpdate
-            );
-
-            console.log(`[GroupTree] 更新分组 ${id} 结果:`, updateResult);
+            console.log('[GroupTree] 批量更新完成');
+          } else {
+            console.log('[GroupTree] 无需更新其他分组');
           }
 
           console.log('[GroupTree] 刷新分组树...');

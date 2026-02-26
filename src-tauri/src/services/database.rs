@@ -229,14 +229,21 @@ impl DatabaseService {
     /// 检查是否已设置主密码
     pub fn has_master_password(&self) -> Result<bool, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM master_password WHERE id = 1",
-                [],
-                |row| row.get(0),
-            )
+        
+        // 检查 password_hash 是否为 NULL,而不是检查记录是否存在
+        let mut stmt = conn
+            .prepare("SELECT password_hash FROM master_password WHERE id = 1")
             .map_err(|e| e.to_string())?;
-        Ok(count > 0)
+        
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let password_hash: Option<String> = row.get(0).map_err(|e| e.to_string())?;
+            Ok(password_hash.is_some())
+        } else {
+            // 记录不存在,说明没有设置主密码
+            Ok(false)
+        }
     }
 
     /// 获取主密码哈希
@@ -264,7 +271,8 @@ impl DatabaseService {
              VALUES (1, ?1, ?2, 1, datetime('now'), datetime('now'))
              ON CONFLICT(id) DO UPDATE SET 
              password_hash=excluded.password_hash, 
-             hint=excluded.hint, 
+             hint=excluded.hint,
+             require_password=1,
              updated_at=datetime('now')",
             (hash, hint),
         ).map_err(|e| e.to_string())?;
@@ -493,6 +501,27 @@ impl DatabaseService {
             // 如果记录不存在，返回默认值
             Ok((false, None, false))
         }
+    }
+
+    /// 设置是否要求主密码(控制锁屏)
+    pub fn set_require_master_password(&self, require: bool) -> Result<(), String> {
+        let conn = self.get_connection().map_err(|e| e.to_string())?;
+        
+        // 检查是否已设置主密码
+        if !self.has_master_password()? {
+            return Err("必须先设置主密码才能启用锁屏功能".to_string());
+        }
+        
+        conn.execute(
+            "UPDATE master_password 
+             SET require_password = ?, 
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [if require { 1 } else { 0 }],
+        ).map_err(|e| e.to_string())?;
+        
+        log::info!("Updated require_password to: {}", require);
+        Ok(())
     }
 
     // --- Notes ---

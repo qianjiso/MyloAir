@@ -1,65 +1,47 @@
 # FAQ - 常见问题
 
-## 数据库分离方案
+本文档汇总了 MyloAir 项目的常见问题和解决方案。
 
-### 为什么开发和生产使用不同的数据库？
+## 📋 问题索引
 
-为了避免开发环境的测试数据污染生产环境，我们使用不同的应用标识符（identifier）来分离数据库路径。
+### 开发与构建
 
-### 数据库路径配置
+1. **如何在开发和生产环境之间切换？**  
+   → 查看 [Tauri 开发/生产环境自动切换方案](./tauri_dev_build_solution.md)
 
-**开发环境**：
-- Identifier: `com.yourcompany.myloair.dev`
-- 数据库路径（macOS）: `~/Library/Application Support/com.yourcompany.myloair.dev/myloair.db`
-- 配置文件：`src-tauri/tauri.conf.json`
+2. **为什么开发和生产使用不同的数据库？如何配置？**  
+   → 查看 [数据库分离方案](./database_separation.md)
 
-**生产环境**：
-- Identifier: `com.yourcompany.myloair`
-- 数据库路径（macOS）: `~/Library/Application Support/com.yourcompany.myloair/myloair.db`
-- 配置文件：打包前需修改 `tauri.conf.json` 的 identifier
+3. **如何验证数据库状态和调试数据？**  
+   → 查看 [数据库调试与验证](./database_debugging.md)
 
-### 如何切换环境？
+4. **打包时遇到问题怎么办？**  
+   → 待补充
 
-1. **开发环境** - 默认配置（已设置为 `.dev`）
-   ```bash
-   cargo tauri dev
-   ```
+### 功能使用
 
-2. **生产打包** - 需要修改 identifier
-   ```bash
-   # 1. 编辑 src-tauri/tauri.conf.json
-   # 将 identifier 从 "com.yourcompany.myloair.dev" 改为 "com.yourcompany.myloair"
-   
-   # 2. 打包
-   cargo tauri build
-   
-   # 3. 打包完成后，记得改回 .dev 以便继续开发
-   ```
+5. **如何导入/导出密码数据？**  
+   → 待补充
 
-### 数据迁移
+6. **如何设置主密码？**  
+   → 待补充
 
-如果需要将旧开发数据迁移到新路径：
+7. **如何配置自动备份？**  
+   → 待补充
 
-**macOS**:
-```bash
-cp ~/Library/Application\ Support/com.yourcompany.myloair/myloair.db \
-   ~/Library/Application\ Support/com.yourcompany.myloair.dev/myloair.db
-```
+### 安全相关
 
-**Windows**:
-```cmd
-copy "%APPDATA%\com.yourcompany.myloair\myloair.db" ^
-     "%APPDATA%\com.yourcompany.myloair.dev\myloair.db"
-```
+8. **数据是如何加密的？**  
+   → 待补充
 
-### 技术实现
-
-- **文件**：`src-tauri/tauri.conf.json` (Line 5)
-- **原理**：Tauri 使用 identifier 生成 `app_data_dir` 路径
-- **修改记录**：2026-02-10 - 实现开发/生产数据库隔离
+9. **忘记主密码怎么办？**  
+   → 待补充
 
 ---
 
-## 其他常见问题
+## 📝 贡献
 
-待补充...
+如果你遇到了新的问题或有解决方案想要分享，欢迎：
+
+1. 在 `docs/` 目录下创建详细的解决方案文档
+2. 在本 FAQ 中添加问题条目和链接

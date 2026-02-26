@@ -18,7 +18,15 @@ import {
   Tabs,
   Collapse,
 } from 'antd';
-import { SaveOutlined, ReloadOutlined, SafetyCertificateOutlined, ToolOutlined, CheckCircleOutlined, ToolTwoTone, FolderOpenOutlined } from '@ant-design/icons';
+import {
+  SaveOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  ToolOutlined,
+  CheckCircleOutlined,
+  ToolTwoTone,
+  FolderOpenOutlined,
+} from '@ant-design/icons';
 import type { MasterPasswordState, UserSetting } from '../../shared/types';
 import * as settingsService from '../services/settings';
 import { useIntegrity } from '../hooks/useIntegrity';
@@ -41,26 +49,50 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   const autoExportTimeOfDay = Form.useWatch('autoExportTimeOfDay', form);
   const autoExportDayOfWeek = Form.useWatch('autoExportDayOfWeek', form);
   const autoExportDayOfMonth = Form.useWatch('autoExportDayOfMonth', form);
-  const autoExportIntervalMinutes = Form.useWatch('autoExportIntervalMinutes', form);
+  const autoExportIntervalMinutes = Form.useWatch(
+    'autoExportIntervalMinutes',
+    form
+  );
   const requireMasterPassword = Form.useWatch('requireMasterPassword', form);
   const autoLockMinutes = Form.useWatch('autoLockMinutes', form);
-  const [initialAutoExportEnabled, setInitialAutoExportEnabled] = useState<boolean | null>(null);
+  const [initialAutoExportEnabled, setInitialAutoExportEnabled] = useState<
+    boolean | null
+  >(null);
   const [loading, setLoading] = useState(false);
-  const { checking, repairing, report, repairResult, check, repair } = useIntegrity();
-  const [securityState, setSecurityState] = useState<MasterPasswordState | null>(null);
+  const { checking, repairing, report, repairResult, check, repair } =
+    useIntegrity();
+  const [securityState, setSecurityState] =
+    useState<MasterPasswordState | null>(null);
   const [masterModalVisible, setMasterModalVisible] = useState(false);
-  const [masterMode, setMasterMode] = useState<'set' | 'update' | 'remove'>('set');
+  const [masterMode, setMasterMode] = useState<'set' | 'update' | 'remove' | 'enable' | 'disable'>(
+    'set'
+  );
   const [masterSaving, setMasterSaving] = useState(false);
   const [masterForm] = Form.useForm();
-  const [selectingExportDirectory, setSelectingExportDirectory] = useState(false);
-  const [activeTab, setActiveTab] = useState<'security' | 'ui' | 'data'>('security');
-  const normalizeExportFormat = useCallback((fmt?: string) => (fmt === 'encrypted_zip' ? 'encrypted_zip' : 'json'), []);
-  const autoExportStatus = (autoExportEnabled ?? initialAutoExportEnabled) ?? false;
+  const [selectingExportDirectory, setSelectingExportDirectory] =
+    useState(false);
+  const [activeTab, setActiveTab] = useState<'security' | 'ui' | 'data'>(
+    'security'
+  );
+  const normalizeExportFormat = useCallback(
+    (fmt?: string) => (fmt === 'encrypted_zip' ? 'encrypted_zip' : 'json'),
+    []
+  );
+  const autoExportStatus =
+    autoExportEnabled ?? initialAutoExportEnabled ?? false;
 
   const autoExportSummary = useMemo(() => {
     if (!autoExportStatus) return '自动导出未开启';
     const directory = autoExportDirectory || '未选择目录';
-    const weekMap: Record<number, string> = { 1: '周一', 2: '周二', 3: '周三', 4: '周四', 5: '周五', 6: '周六', 7: '周日' };
+    const weekMap: Record<number, string> = {
+      1: '周一',
+      2: '周二',
+      3: '周三',
+      4: '周四',
+      5: '周五',
+      6: '周六',
+      7: '周日',
+    };
     const timeText = autoExportTimeOfDay || '02:00';
     const dayOfWeekText = weekMap[Number(autoExportDayOfWeek)] || '周一';
     const dayOfMonthText = autoExportDayOfMonth || 1;
@@ -74,80 +106,114 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       return `每月${dayOfMonthText} 日 ${timeText} · ${directory}`;
     }
     return `每日 ${timeText} · ${directory}`;
-  }, [autoExportDirectory, autoExportFrequency, autoExportIntervalMinutes, autoExportDayOfMonth, autoExportDayOfWeek, autoExportStatus, autoExportTimeOfDay]);
+  }, [
+    autoExportDirectory,
+    autoExportFrequency,
+    autoExportIntervalMinutes,
+    autoExportDayOfMonth,
+    autoExportDayOfWeek,
+    autoExportStatus,
+    autoExportTimeOfDay,
+  ]);
   const securitySummary = useMemo(() => {
     const lock = Math.max(1, Number(autoLockMinutes || 5));
     if (securityState?.hasMasterPassword) {
-      return requireMasterPassword ? `主密码已启用 · ${lock} 分钟自动锁定` : `主密码已设置 · ${lock} 分钟自动锁定`;
+      return requireMasterPassword
+        ? `主密码已启用 · ${lock} 分钟自动锁定`
+        : `主密码已设置 · ${lock} 分钟自动锁定`;
     }
     return `主密码未设置 · ${lock} 分钟自动锁定`;
   }, [autoLockMinutes, requireMasterPassword, securityState]);
 
-  const mapSettingsToForm = useCallback((settingsData: UserSetting[], secState: MasterPasswordState | null) => {
-    const formData: Record<string, any> = {};
-    settingsData.forEach((setting: UserSetting) => {
-      let key = setting.key;
-      if (key === 'security.auto_lock_timeout') {
-        formData.autoLockMinutes = Math.max(1, Math.round(Number(setting.value) / 60));
-        return;
-      }
-      if (key === 'autoLockTime') {
-        formData.autoLockMinutes = Number(setting.value) || formData.autoLockMinutes;
-        return;
-      }
-      if (key === 'backup.auto_export_enabled' || key === 'backupEnabled') key = 'autoExportEnabled';
-      if (key === 'backup.auto_export_frequency') key = 'autoExportFrequency';
-      if (key === 'backup.auto_export_directory') key = 'autoExportDirectory';
-      if (key === 'backup.auto_export_format') key = 'exportFormat';
-      if (key === 'backup.auto_export_password') key = 'exportDefaultPassword';
-      if (key === 'backup.auto_export_time_of_day') key = 'autoExportTimeOfDay';
-      if (key === 'backup.auto_export_day_of_week') key = 'autoExportDayOfWeek';
-      if (key === 'backup.auto_export_day_of_month') key = 'autoExportDayOfMonth';
-      if (key === 'backup.auto_export_interval_minutes') key = 'autoExportIntervalMinutes';
-      if (setting.type === 'boolean') {
-        formData[key] = setting.value === 'true';
-      } else if (setting.type === 'number') {
-        formData[key] = Number(setting.value);
-      } else {
-        formData[key] = setting.value;
-      }
-    });
-    const normalizedExportFormat = normalizeExportFormat(formData.exportFormat);
-    return {
-      // 先展开后端返回的所有设置项，保证未显式处理的键（如密码生成器相关）也能回填到表单
-      ...formData,
-      // 再按需覆盖 UI 与安全相关的默认值
-      theme: formData.theme || 'auto',
-      language: formData.language || 'zh-CN',
-      uiListDensity: formData.uiListDensity || 'comfortable',
-      uiFontSize: formData.uiFontSize || 'normal',
-      exportDefaultPassword: formData.exportDefaultPassword || '',
-      exportFormat: normalizedExportFormat,
-      autoExportEnabled: formData.autoExportEnabled ?? false,
-      autoExportFrequency: formData.autoExportFrequency || 'daily',
-      autoExportDirectory: formData.autoExportDirectory || '',
-      // 自动导出时间细节
-      autoExportTimeOfDay: formData.autoExportTimeOfDay || '02:00',
-      autoExportDayOfWeek: formData.autoExportDayOfWeek ?? 1,
-      autoExportDayOfMonth: formData.autoExportDayOfMonth ?? 1,
-      autoExportIntervalMinutes: formData.autoExportIntervalMinutes ?? 60,
-      requireMasterPassword: secState?.requireMasterPassword ?? formData.requireMasterPassword ?? false,
-      autoLockMinutes: secState?.autoLockMinutes ?? formData.autoLockMinutes ?? 5,
-      // 密码生成器相关：如有存储值则使用存储值，否则退回到后端默认/内置默认
-      'security.password_generator_length': formData['security.password_generator_length'] ?? 16,
-      'security.password_generator_include_uppercase': formData['security.password_generator_include_uppercase'] ?? true,
-      'security.password_generator_include_lowercase': formData['security.password_generator_include_lowercase'] ?? true,
-      'security.password_generator_include_numbers': formData['security.password_generator_include_numbers'] ?? true,
-      'security.password_generator_include_symbols': formData['security.password_generator_include_symbols'] ?? true,
-    };
-  }, [normalizeExportFormat]);
+  const mapSettingsToForm = useCallback(
+    (settingsData: UserSetting[], secState: MasterPasswordState | null) => {
+      const formData: Record<string, any> = {};
+      settingsData.forEach((setting: UserSetting) => {
+        let key = setting.key;
+        if (key === 'security.auto_lock_timeout') {
+          formData.autoLockMinutes = Math.max(
+            1,
+            Math.round(Number(setting.value) / 60)
+          );
+          return;
+        }
+        if (key === 'autoLockTime') {
+          formData.autoLockMinutes =
+            Number(setting.value) || formData.autoLockMinutes;
+          return;
+        }
+        if (key === 'backup.auto_export_enabled' || key === 'backupEnabled')
+          key = 'autoExportEnabled';
+        if (key === 'backup.auto_export_frequency') key = 'autoExportFrequency';
+        if (key === 'backup.auto_export_directory') key = 'autoExportDirectory';
+        if (key === 'backup.auto_export_format') key = 'exportFormat';
+        if (key === 'backup.auto_export_password')
+          key = 'exportDefaultPassword';
+        if (key === 'backup.auto_export_time_of_day')
+          key = 'autoExportTimeOfDay';
+        if (key === 'backup.auto_export_day_of_week')
+          key = 'autoExportDayOfWeek';
+        if (key === 'backup.auto_export_day_of_month')
+          key = 'autoExportDayOfMonth';
+        if (key === 'backup.auto_export_interval_minutes')
+          key = 'autoExportIntervalMinutes';
+        if (setting.type === 'boolean') {
+          formData[key] = setting.value === 'true';
+        } else if (setting.type === 'number') {
+          formData[key] = Number(setting.value);
+        } else {
+          formData[key] = setting.value;
+        }
+      });
+      const normalizedExportFormat = normalizeExportFormat(
+        formData.exportFormat
+      );
+      return {
+        // 先展开后端返回的所有设置项，保证未显式处理的键（如密码生成器相关）也能回填到表单
+        ...formData,
+        // 再按需覆盖 UI 与安全相关的默认值
+        theme: formData.theme || 'auto',
+        language: formData.language || 'zh-CN',
+        uiListDensity: formData.uiListDensity || 'comfortable',
+        uiFontSize: formData.uiFontSize || 'normal',
+        exportDefaultPassword: formData.exportDefaultPassword || '',
+        exportFormat: normalizedExportFormat,
+        autoExportEnabled: formData.autoExportEnabled ?? false,
+        autoExportFrequency: formData.autoExportFrequency || 'daily',
+        autoExportDirectory: formData.autoExportDirectory || '',
+        // 自动导出时间细节
+        autoExportTimeOfDay: formData.autoExportTimeOfDay || '02:00',
+        autoExportDayOfWeek: formData.autoExportDayOfWeek ?? 1,
+        autoExportDayOfMonth: formData.autoExportDayOfMonth ?? 1,
+        autoExportIntervalMinutes: formData.autoExportIntervalMinutes ?? 60,
+        requireMasterPassword:
+          secState?.requireMasterPassword ??
+          formData.requireMasterPassword ??
+          false,
+        autoLockMinutes:
+          secState?.autoLockMinutes ?? formData.autoLockMinutes ?? 5,
+        // 密码生成器相关：如有存储值则使用存储值，否则退回到后端默认/内置默认
+        'security.password_generator_length':
+          formData['security.password_generator_length'] ?? 16,
+        'security.password_generator_include_uppercase':
+          formData['security.password_generator_include_uppercase'] ?? true,
+        'security.password_generator_include_lowercase':
+          formData['security.password_generator_include_lowercase'] ?? true,
+        'security.password_generator_include_numbers':
+          formData['security.password_generator_include_numbers'] ?? true,
+        'security.password_generator_include_symbols':
+          formData['security.password_generator_include_symbols'] ?? true,
+      };
+    },
+    [normalizeExportFormat]
+  );
 
   const loadSecurityState = useCallback(async () => {
     const state = await securityService.getSecurityState();
     setSecurityState(state);
     form.setFieldsValue({
       requireMasterPassword: state.requireMasterPassword,
-      autoLockMinutes: state.autoLockMinutes
+      autoLockMinutes: state.autoLockMinutes,
     });
   }, [form]);
 
@@ -177,12 +243,21 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       const values = form.getFieldsValue();
       const exportFormat = normalizeExportFormat(values.exportFormat);
       const autoExportEnabled = !!values.autoExportEnabled;
-      if (autoExportEnabled && exportFormat === 'encrypted_zip' && (!values.exportDefaultPassword || String(values.exportDefaultPassword).length < 4)) {
+      if (
+        autoExportEnabled &&
+        exportFormat === 'encrypted_zip' &&
+        (!values.exportDefaultPassword ||
+          String(values.exportDefaultPassword).length < 4)
+      ) {
         message.error('开启自动导出并选择加密ZIP时，请先设置至少4位的密码');
         setLoading(false);
         return;
       }
-      if (autoExportEnabled && (!values.autoExportDirectory || !String(values.autoExportDirectory).trim())) {
+      if (
+        autoExportEnabled &&
+        (!values.autoExportDirectory ||
+          !String(values.autoExportDirectory).trim())
+      ) {
         message.error('开启自动导出时，请先选择导出目录');
         setLoading(false);
         return;
@@ -190,45 +265,110 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
 
       if (values.autoLockMinutes != null) {
         const seconds = Math.max(1, Number(values.autoLockMinutes)) * 60;
-        await settingsService.setSetting('security.auto_lock_timeout', String(seconds), 'number', 'security', '自动锁定时间（秒）');
+        await settingsService.setSetting(
+          'security.auto_lock_timeout',
+          String(seconds),
+          'number',
+          'security',
+          '自动锁定时间（秒）'
+        );
       }
       if (typeof values.requireMasterPassword === 'boolean') {
-        await securityService.setRequireMasterPassword(values.requireMasterPassword);
+        await securityService.setRequireMasterPassword(
+          values.requireMasterPassword
+        );
       }
 
       // 保存其他设置项
       for (const [key, value] of Object.entries(values)) {
-        if ([
-          'autoLockMinutes',
-          'requireMasterPassword',
-          'autoExportEnabled',
-          'autoExportFrequency',
-          'autoExportDirectory',
-          'exportFormat',
-          'exportDefaultPassword',
-          'backupEnabled',
-          'autoExportTimeOfDay',
-          'autoExportDayOfWeek',
-          'autoExportDayOfMonth',
-          'autoExportIntervalMinutes',
-        ].includes(key)) continue;
+        if (
+          [
+            'autoLockMinutes',
+            'requireMasterPassword',
+            'autoExportEnabled',
+            'autoExportFrequency',
+            'autoExportDirectory',
+            'exportFormat',
+            'exportDefaultPassword',
+            'backupEnabled',
+            'autoExportTimeOfDay',
+            'autoExportDayOfWeek',
+            'autoExportDayOfMonth',
+            'autoExportIntervalMinutes',
+          ].includes(key)
+        )
+          continue;
         if (value === undefined) continue;
         await settingsService.setSetting(key, String(value));
       }
-      await settingsService.setSetting('backup.auto_export_format', exportFormat, 'string', 'backup', '自动导出格式');
-      await settingsService.setSetting('backup.auto_export_password', values.exportDefaultPassword || '', 'string', 'backup', '自动导出压缩包密码');
-      await settingsService.setSetting('backup.auto_export_directory', values.autoExportDirectory || '', 'string', 'backup', '自动导出目录');
-      await settingsService.setSetting('backup.auto_export_enabled', String(autoExportEnabled), 'boolean', 'backup', '是否开启自动导出');
-      await settingsService.setSetting('backup.auto_export_frequency', values.autoExportFrequency || 'daily', 'string', 'backup', '自动导出频率');
+      await settingsService.setSetting(
+        'backup.auto_export_format',
+        exportFormat,
+        'string',
+        'backup',
+        '自动导出格式'
+      );
+      await settingsService.setSetting(
+        'backup.auto_export_password',
+        values.exportDefaultPassword || '',
+        'string',
+        'backup',
+        '自动导出压缩包密码'
+      );
+      await settingsService.setSetting(
+        'backup.auto_export_directory',
+        values.autoExportDirectory || '',
+        'string',
+        'backup',
+        '自动导出目录'
+      );
+      await settingsService.setSetting(
+        'backup.auto_export_enabled',
+        String(autoExportEnabled),
+        'boolean',
+        'backup',
+        '是否开启自动导出'
+      );
+      await settingsService.setSetting(
+        'backup.auto_export_frequency',
+        values.autoExportFrequency || 'daily',
+        'string',
+        'backup',
+        '自动导出频率'
+      );
       // 自动导出时间配置
       const timeOfDay = values.autoExportTimeOfDay || '02:00';
-      await settingsService.setSetting('backup.auto_export_time_of_day', timeOfDay, 'string', 'backup', '自动导出时间（每日/每周/每月，格式 HH:mm）');
+      await settingsService.setSetting(
+        'backup.auto_export_time_of_day',
+        timeOfDay,
+        'string',
+        'backup',
+        '自动导出时间（每日/每周/每月，格式 HH:mm）'
+      );
       const dayOfWeek = values.autoExportDayOfWeek ?? 1;
-      await settingsService.setSetting('backup.auto_export_day_of_week', String(dayOfWeek), 'number', 'backup', '自动导出周几（1=周一 ... 7=周日）');
+      await settingsService.setSetting(
+        'backup.auto_export_day_of_week',
+        String(dayOfWeek),
+        'number',
+        'backup',
+        '自动导出周几（1=周一 ... 7=周日）'
+      );
       const dayOfMonth = values.autoExportDayOfMonth ?? 1;
-      await settingsService.setSetting('backup.auto_export_day_of_month', String(dayOfMonth), 'number', 'backup', '自动导出日期（1-31）');
+      await settingsService.setSetting(
+        'backup.auto_export_day_of_month',
+        String(dayOfMonth),
+        'number',
+        'backup',
+        '自动导出日期（1-31）'
+      );
       const intervalMinutes = values.autoExportIntervalMinutes ?? 60;
-      await settingsService.setSetting('backup.auto_export_interval_minutes', String(intervalMinutes), 'number', 'backup', '自动导出间隔（分钟，every_minute 模式）');
+      await settingsService.setSetting(
+        'backup.auto_export_interval_minutes',
+        String(intervalMinutes),
+        'number',
+        'backup',
+        '自动导出间隔（分钟，every_minute 模式）'
+      );
       await loadSecurityState();
       message.success('设置保存成功');
       if (onClose) onClose();
@@ -266,13 +406,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     try {
       setSelectingExportDirectory(true);
       const currentPath = form.getFieldValue('autoExportDirectory');
-      const picked = await backupService.pickExportDirectory({ defaultPath: currentPath });
+      const picked = await backupService.pickExportDirectory({
+        defaultPath: currentPath,
+      });
       if (picked !== null) {
         form.setFieldsValue({ autoExportDirectory: picked });
       }
     } catch (error) {
       message.error('选择自动导出目录失败');
-      reportError('SETTINGS_PICK_EXPORT_DIRECTORY_FAILED', '选择自动导出目录失败', error);
+      reportError(
+        'SETTINGS_PICK_EXPORT_DIRECTORY_FAILED',
+        '选择自动导出目录失败',
+        error
+      );
     } finally {
       setSelectingExportDirectory(false);
     }
@@ -293,7 +439,9 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   const handleRepairIntegrity = async () => {
     try {
       const r = await repair();
-      message.success(`修复完成：${r.repaired.length} 条修复，${r.failed.length} 条失败`);
+      message.success(
+        `修复完成：${r.repaired.length} 条修复，${r.failed.length} 条失败`
+      );
     } catch (error) {
       message.error('完整性修复失败');
       reportError('SETTINGS_REPAIR_INTEGRITY_FAILED', '完整性修复失败', error);
@@ -301,30 +449,70 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   };
 
   const handleMasterSubmit = async () => {
-    const values = await masterForm.validateFields();
+    setMasterSaving(true);
     try {
-      setMasterSaving(true);
-      let res: { success: boolean; error?: string; state?: MasterPasswordState } = { success: false };
-      if (masterMode === 'remove') {
-        res = await securityService.clearMasterPassword(values.currentPassword);
+      const values = await masterForm.validateFields();
+      let res;
+
+      if (masterMode === 'enable') {
+        // 开启主密码
+        res = await window.electronAPI.setRequireMasterPassword(
+          true,
+          values.newPassword,
+          values.hint
+        );
+        if (res.success && res.state) {
+          message.success('主密码已开启,应用已锁定');
+        }
+      } else if (masterMode === 'disable') {
+        // 关闭主密码
+        res = await window.electronAPI.setRequireMasterPassword(
+          false,
+          undefined,
+          undefined,
+          values.currentPassword
+        );
+        if (res.success && res.state) {
+          message.success('主密码已关闭,应用已解锁');
+        }
       } else if (masterMode === 'update') {
-        res = await securityService.updateMasterPassword(values.currentPassword, values.newPassword, values.hint);
+        // 修改主密码
+        res = await window.electronAPI.updateMasterPassword(
+          values.currentPassword,
+          values.newPassword,
+          values.hint
+        );
+        if (res.success && res.state) {
+          message.success('主密码已更新');
+        }
       } else {
-        res = await securityService.setMasterPassword(values.newPassword, values.hint);
+        // 兼容旧的 set/remove 模式(如果还有的话)
+        if (masterMode === 'remove') {
+          res = await window.electronAPI.clearMasterPassword(values.currentPassword);
+        } else {
+          res = await window.electronAPI.setMasterPassword(values.newPassword, values.hint);
+        }
       }
+
       if (!res.success) throw new Error(res.error || '操作失败');
       setSecurityState(res.state || null);
       form.setFieldsValue({
-        requireMasterPassword: res.state?.requireMasterPassword ?? form.getFieldValue('requireMasterPassword'),
-        autoLockMinutes: res.state?.autoLockMinutes ?? form.getFieldValue('autoLockMinutes')
+        requireMasterPassword:
+          res.state?.requireMasterPassword ??
+          form.getFieldValue('requireMasterPassword'),
+        autoLockMinutes:
+          res.state?.autoLockMinutes ?? form.getFieldValue('autoLockMinutes'),
       });
       setMasterModalVisible(false);
       masterForm.resetFields();
-      message.success(masterMode === 'remove' ? '已关闭主密码' : '主密码已更新');
     } catch (error) {
       const msg = error instanceof Error ? error.message : '操作失败';
       message.error(msg);
-      reportError('SETTINGS_MASTER_PASSWORD_OPERATION_FAILED', '主密码操作失败', error);
+      reportError(
+        'SETTINGS_MASTER_PASSWORD_OPERATION_FAILED',
+        '主密码操作失败',
+        error
+      );
       throw error;
     } finally {
       setMasterSaving(false);
@@ -339,7 +527,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Row gutter={16}>
             <Col span={14}>
-              <Card size="small" title="访问控制" headStyle={{ fontWeight: 600 }}>
+              <Card
+                size="small"
+                title="访问控制"
+                headStyle={{ fontWeight: 600 }}
+              >
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item
@@ -351,32 +543,86 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       <InputNumber
                         min={1}
                         max={120}
-                    </Tag>
-                    <Typography.Text strong>
-                      {securityState?.hasMasterPassword ? '主密码保护开启' : '主密码未开启'}
-                    </Typography.Text>
-                  </Space>
-                  <Typography.Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
-                    {securitySummary}
-                  </Typography.Text>
-                  <Space wrap style={{ marginTop: 12 }}>
-                    <Button
-                      type="primary"
-                      onClick={() => { setMasterMode(securityState?.hasMasterPassword ? 'update' : 'set'); masterForm.resetFields(); setMasterModalVisible(true); }}
+                        style={{ width: '100%' }}
+                        placeholder="5"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      label="启用主密码"
+                      name="requireMasterPassword"
+                      valuePropName="checked"
+                      tooltip="启用后立即锁定应用,需要输入主密码解锁"
+                      style={{ marginBottom: 12 }}
                     >
-                      {securityState?.hasMasterPassword ? '修改主密码' : '设置主密码'}
-                    </Button>
-                    {securityState?.hasMasterPassword && (
-                      <Button danger onClick={() => { setMasterMode('remove'); masterForm.resetFields(); setMasterModalVisible(true); }}>
-                        关闭主密码
+                      <Switch
+                        checked={securityState?.hasMasterPassword && securityState?.requireMasterPassword}
+                        onChange={(checked) => {
+                          if (checked) {
+                            // 开启:弹出设置密码对话框
+                            setMasterMode('enable');
+                            masterForm.resetFields();
+                            setMasterModalVisible(true);
+                          } else {
+                            // 关闭:弹出验证密码对话框
+                            setMasterMode('disable');
+                            masterForm.resetFields();
+                            setMasterModalVisible(true);
+                          }
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: '12px',
+                    background: '#f5f5f5',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Space
+                    direction="vertical"
+                    size={8}
+                    style={{ width: '100%' }}
+                  >
+                    <Typography.Text strong>
+                      {securityState?.hasMasterPassword
+                        ? '主密码保护开启'
+                        : '主密码未开启'}
+                    </Typography.Text>
+                    <Typography.Text
+                      type="secondary"
+                      style={{ display: 'block' }}
+                    >
+                      {securitySummary}
+                    </Typography.Text>
+                    <Space wrap style={{ marginTop: 4 }}>
+                      {securityState?.hasMasterPassword && (
+                      <Button
+                        type="primary"
+                        onClick={() => {
+                          setMasterMode('update');
+                          masterForm.resetFields();
+                          setMasterModalVisible(true);
+                        }}
+                      >
+                        修改主密码
                       </Button>
-                    )}
+                    )}  </Space>
                   </Space>
                 </div>
               </Card>
             </Col>
             <Col span={10}>
-              <Card size="small" title="密码生成器" extra={<Tag color="blue">常用</Tag>} headStyle={{ fontWeight: 600 }}>
+              <Card
+                size="small"
+                title="密码生成器"
+                extra={<Tag color="blue">常用</Tag>}
+                headStyle={{ fontWeight: 600 }}
+              >
                 <Row gutter={12}>
                   <Col span={24}>
                     <Form.Item
@@ -444,7 +690,12 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       label: '界面与体验',
       children: (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Card size="small" title="界面设置" extra={<Tag color="gold">清爽</Tag>} headStyle={{ fontWeight: 600 }}>
+          <Card
+            size="small"
+            title="界面设置"
+            extra={<Tag color="gold">清爽</Tag>}
+            headStyle={{ fontWeight: 600 }}
+          >
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item
@@ -522,7 +773,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                     valuePropName="checked"
                     style={{ marginBottom: 0 }}
                   >
-                    <Switch size="small" checkedChildren="自动导出" unCheckedChildren="自动导出" />
+                    <Switch
+                      size="small"
+                      checkedChildren="自动导出"
+                      unCheckedChildren="自动导出"
+                    />
                   </Form.Item>
                 }
                 headStyle={{ fontWeight: 600 }}
@@ -548,7 +803,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       rules={[{ min: 4, message: '至少4位' }]}
                       style={{ marginBottom: 12 }}
                     >
-                      <Input.Password placeholder="可选，至少4位" disabled={!autoExportEnabled} />
+                      <Input.Password
+                        placeholder="可选，至少4位"
+                        disabled={!autoExportEnabled}
+                      />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -561,7 +819,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       tooltip="每分钟/每日/每周/每月定期导出到指定目录"
                       style={{ marginBottom: 12 }}
                     >
-                      <Select placeholder="选择自动导出频率" disabled={!autoExportEnabled}>
+                      <Select
+                        placeholder="选择自动导出频率"
+                        disabled={!autoExportEnabled}
+                      >
                         <Option value="every_minute">每分钟</Option>
                         <Option value="daily">每日</Option>
                         <Option value="weekly">每周</Option>
@@ -581,7 +842,13 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                         readOnly
                         disabled={!autoExportEnabled}
                         addonAfter={
-                          <Button size="small" icon={<FolderOpenOutlined />} onClick={handlePickExportDirectory} loading={selectingExportDirectory} disabled={!autoExportEnabled}>
+                          <Button
+                            size="small"
+                            icon={<FolderOpenOutlined />}
+                            onClick={handlePickExportDirectory}
+                            loading={selectingExportDirectory}
+                            disabled={!autoExportEnabled}
+                          >
                             选择
                           </Button>
                         }
@@ -590,25 +857,26 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                   </Col>
                 </Row>
 
-                {autoExportEnabled && autoExportFrequency === 'every_minute' && (
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item
-                        label="导出间隔（分钟）"
-                        name="autoExportIntervalMinutes"
-                        tooltip="每隔多少分钟自动导出一次"
-                        style={{ marginBottom: 12 }}
-                      >
-                        <InputNumber
-                          min={1}
-                          max={1440}
-                          style={{ width: '100%' }}
-                          placeholder="例如 60 表示每 60 分钟"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                )}
+                {autoExportEnabled &&
+                  autoExportFrequency === 'every_minute' && (
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.Item
+                          label="导出间隔（分钟）"
+                          name="autoExportIntervalMinutes"
+                          tooltip="每隔多少分钟自动导出一次"
+                          style={{ marginBottom: 12 }}
+                        >
+                          <InputNumber
+                            min={1}
+                            max={1440}
+                            style={{ width: '100%' }}
+                            placeholder="例如 60 表示每 60 分钟"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
 
                 {autoExportEnabled && autoExportFrequency === 'daily' && (
                   <Row gutter={12}>
@@ -687,31 +955,48 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                     </Col>
                   </Row>
                 )}
-
               </Card>
             </Col>
             <Col span={10}>
               <Card
                 size="small"
                 title="数据健康"
-                extra={(
+                extra={
                   <Space size="small">
                     <Tag color="green">快照</Tag>
-                    <Button size="small" icon={<SafetyCertificateOutlined />} onClick={handleCheckIntegrity} loading={checking}>
+                    <Button
+                      size="small"
+                      icon={<SafetyCertificateOutlined />}
+                      onClick={handleCheckIntegrity}
+                      loading={checking}
+                    >
                       检查
                     </Button>
-                    <Button size="small" icon={<ToolOutlined />} onClick={handleRepairIntegrity} loading={repairing}>
+                    <Button
+                      size="small"
+                      icon={<ToolOutlined />}
+                      onClick={handleRepairIntegrity}
+                      loading={repairing}
+                    >
                       修复
                     </Button>
                   </Space>
-                )}
+                }
                 headStyle={{ fontWeight: 600 }}
               >
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ width: '100%' }}
+                >
                   <div>
                     <Typography.Text strong>自动导出</Typography.Text>
                     <br />
-                    <Typography.Text style={{ color: autoExportStatus ? '#389e0d' : '#8c8c8c' }}>
+                    <Typography.Text
+                      style={{
+                        color: autoExportStatus ? '#389e0d' : '#8c8c8c',
+                      }}
+                    >
                       {autoExportSummary}
                     </Typography.Text>
                   </div>
@@ -724,19 +1009,43 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                         label: (
                           <Space size={8}>
                             <CheckCircleOutlined />
-                            <span>检查结果{report ? `（错误 ${report.errors.length} · 警告 ${report.warnings.length}）` : ''}</span>
+                            <span>
+                              检查结果
+                              {report
+                                ? `（错误 ${report.errors.length} · 警告 ${report.warnings.length}）`
+                                : ''}
+                            </span>
                           </Space>
                         ),
                         children: (
-                          <div style={{ maxHeight: 180, overflow: 'auto', padding: '4px 4px 0' }}>
+                          <div
+                            style={{
+                              maxHeight: 180,
+                              overflow: 'auto',
+                              padding: '4px 4px 0',
+                            }}
+                          >
                             {report ? (
                               <div>
-                                <div style={{ marginBottom: 6 }}>错误 {report.errors.length}，警告 {report.warnings.length}</div>
+                                <div style={{ marginBottom: 6 }}>
+                                  错误 {report.errors.length}，警告{' '}
+                                  {report.warnings.length}
+                                </div>
                                 {report.errors.map((e, idx) => (
-                                  <div key={`err-${idx}`} style={{ color: '#cf1322' }}>{e}</div>
+                                  <div
+                                    key={`err-${idx}`}
+                                    style={{ color: '#cf1322' }}
+                                  >
+                                    {e}
+                                  </div>
                                 ))}
                                 {report.warnings.map((w, idx) => (
-                                  <div key={`warn-${idx}`} style={{ color: '#faad14' }}>{w}</div>
+                                  <div
+                                    key={`warn-${idx}`}
+                                    style={{ color: '#faad14' }}
+                                  >
+                                    {w}
+                                  </div>
                                 ))}
                               </div>
                             ) : (
@@ -750,19 +1059,43 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                         label: (
                           <Space size={8}>
                             <ToolTwoTone twoToneColor="#52c41a" />
-                            <span>修复结果{repairResult ? `（已修复 ${repairResult.repaired.length} · 失败 ${repairResult.failed.length}）` : ''}</span>
+                            <span>
+                              修复结果
+                              {repairResult
+                                ? `（已修复 ${repairResult.repaired.length} · 失败 ${repairResult.failed.length}）`
+                                : ''}
+                            </span>
                           </Space>
                         ),
                         children: (
-                          <div style={{ maxHeight: 180, overflow: 'auto', padding: '4px 4px 0' }}>
+                          <div
+                            style={{
+                              maxHeight: 180,
+                              overflow: 'auto',
+                              padding: '4px 4px 0',
+                            }}
+                          >
                             {repairResult ? (
                               <div>
-                                <div style={{ marginBottom: 6 }}>已修复 {repairResult.repaired.length}，失败 {repairResult.failed.length}</div>
+                                <div style={{ marginBottom: 6 }}>
+                                  已修复 {repairResult.repaired.length}，失败{' '}
+                                  {repairResult.failed.length}
+                                </div>
                                 {repairResult.repaired.map((r, idx) => (
-                                  <div key={`rep-${idx}`} style={{ color: '#52c41a' }}>{r}</div>
+                                  <div
+                                    key={`rep-${idx}`}
+                                    style={{ color: '#52c41a' }}
+                                  >
+                                    {r}
+                                  </div>
                                 ))}
                                 {repairResult.failed.map((f, idx) => (
-                                  <div key={`fail-${idx}`} style={{ color: '#cf1322' }}>{f}</div>
+                                  <div
+                                    key={`fail-${idx}`}
+                                    style={{ color: '#cf1322' }}
+                                  >
+                                    {f}
+                                  </div>
                                 ))}
                               </div>
                             ) : (
@@ -786,17 +1119,37 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     <div style={{ padding: '8px 0' }}>
       <Card
         bordered={false}
-        style={{ borderRadius: 12, background: 'linear-gradient(120deg, #f3f6ff 0%, #ffffff 100%)', boxShadow: '0 10px 30px rgba(0,0,0,0.04)' }}
+        style={{
+          borderRadius: 12,
+          background: 'linear-gradient(120deg, #f3f6ff 0%, #ffffff 100%)',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+        }}
         bodyStyle={{ padding: '12px 16px' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <div>
-            <Title level={4} style={{ margin: 0 }}>用户设置</Title>
-            <Typography.Text type="secondary">分栏视图让你无需下拉即可完成常用操作</Typography.Text>
+            <Title level={4} style={{ margin: 0 }}>
+              用户设置
+            </Title>
+            <Typography.Text type="secondary">
+              分栏视图让你无需下拉即可完成常用操作
+            </Typography.Text>
           </div>
           <Space size="small">
-            <Tag color={securityState?.hasMasterPassword ? 'green' : 'orange'}>{securityState?.hasMasterPassword ? '主密码已开启' : '主密码未开启'}</Tag>
-            <Tag color={autoExportStatus ? 'blue' : 'default'}>{autoExportStatus ? '自动导出开启' : '自动导出关闭'}</Tag>
+            <Tag color={securityState?.hasMasterPassword ? 'green' : 'orange'}>
+              {securityState?.hasMasterPassword
+                ? '主密码已开启'
+                : '主密码未开启'}
+            </Tag>
+            <Tag color={autoExportStatus ? 'blue' : 'default'}>
+              {autoExportStatus ? '自动导出开启' : '自动导出关闭'}
+            </Tag>
           </Space>
         </div>
       </Card>
@@ -814,7 +1167,14 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         />
       </Form>
 
-      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+      <div
+        style={{
+          marginTop: 16,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 12,
+        }}
+      >
         <Button
           icon={<ReloadOutlined />}
           onClick={handleReset}
@@ -833,9 +1193,22 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       </div>
 
       <Modal
-        title={masterMode === 'remove' ? '关闭主密码' : securityState?.hasMasterPassword ? '修改主密码' : '设置主密码'}
+        title={
+          masterMode === 'enable'
+            ? '设置主密码'
+            : masterMode === 'disable'
+              ? '关闭主密码'
+              : masterMode === 'update'
+                ? '修改主密码'
+                : masterMode === 'remove'
+                  ? '关闭主密码'
+                  : '设置主密码'
+        }
         open={masterModalVisible}
-        onCancel={() => setMasterModalVisible(false)}
+        onCancel={() => {
+          setMasterModalVisible(false);
+          masterForm.resetFields();
+        }}
         onOk={async () => {
           try {
             await masterForm.validateFields();
@@ -848,7 +1221,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         destroyOnClose
       >
         <Form layout="vertical" form={masterForm}>
-          {masterMode !== 'set' && (
+          {/* 需要输入当前密码的模式: disable, update, remove */}
+          {(masterMode === 'disable' || masterMode === 'update' || masterMode === 'remove') && (
             <Form.Item
               label="当前主密码"
               name="currentPassword"
@@ -857,12 +1231,16 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
               <Input.Password />
             </Form.Item>
           )}
-          {masterMode !== 'remove' && (
+          {/* 需要输入新密码的模式: enable, update, set */}
+          {(masterMode === 'enable' || masterMode === 'update' || masterMode === 'set') && (
             <>
               <Form.Item
                 label="新主密码"
                 name="newPassword"
-                rules={[{ required: true, message: '请输入新主密码' }, { min: 6, message: '至少6位字符' }]}
+                rules={[
+                  { required: true, message: '请输入新主密码' },
+                  { min: 6, message: '至少6位字符' },
+                ]}
               >
                 <Input.Password placeholder="至少6位，建议包含字母和数字" />
               </Form.Item>
@@ -877,9 +1255,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       if (!value || getFieldValue('newPassword') === value) {
                         return Promise.resolve();
                       }
-                      return Promise.reject(new Error('两次输入的主密码不一致'));
-                    }
-                  })
+                      return Promise.reject(
+                        new Error('两次输入的主密码不一致')
+                      );
+                    },
+                  }),
                 ]}
               >
                 <Input.Password />
@@ -889,8 +1269,12 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
               </Form.Item>
             </>
           )}
-          {masterMode === 'remove' && (
-            <Alert type="warning" message="关闭主密码后，应用启动将不再需要解锁，请确认已备份数据。" />
+          {/* 警告提示 */}
+          {(masterMode === 'disable' || masterMode === 'remove') && (
+            <Alert
+              type="warning"
+              message="⚠️ 关闭主密码后，应用将不再需要密码解锁，请确认已备份数据。"
+            />
           )}
         </Form>
       </Modal>

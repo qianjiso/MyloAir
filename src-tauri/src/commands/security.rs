@@ -93,13 +93,44 @@ pub async fn security_verify_master_password(
 
 #[tauri::command]
 pub async fn security_update_master_password(
-    _state: State<'_, AppState>,
-    _current_password: String,
-    _new_password: String,
-    _hint: Option<String>,
+    state: State<'_, AppState>,
+    current_password: String,
+    new_password: String,
+    hint: Option<String>,
 ) -> Result<Value, String> {
-    // TODO impl
-    Ok(json!({ "success": false, "error": "尚未实现" }))
+    // 1. 验证当前密码
+    let db_hash_opt = state.db.get_master_password_hash()
+        .map_err(|e| e.to_string())?;
+    
+    if let Some(stored_hash) = db_hash_opt {
+        let input_hash = hash_password(&current_password);
+        if stored_hash != input_hash {
+            return Ok(json!({
+                "success": false,
+                "error": "当前密码错误"
+            }));
+        }
+    } else {
+        return Ok(json!({
+            "success": false,
+            "error": "主密码未设置"
+        }));
+    }
+    
+    // 2. 更新密码
+    let new_hash = hash_password(&new_password);
+    state.db.set_master_password(&new_hash, hint.as_deref())
+        .map_err(|e| e.to_string())?;
+    
+    log::info!("Master password updated successfully");
+    
+    // 3. 返回新状态(不修改 ui_locked)
+    let new_state = security_get_state(state).await?;
+    
+    Ok(json!({
+        "success": true,
+        "state": new_state
+    }))
 }
 
 #[tauri::command]
@@ -147,11 +178,74 @@ pub async fn security_clear_master_password(
 
 #[tauri::command]
 pub async fn security_set_require_master_password(
-    _state: State<'_, AppState>,
-    _require: bool,
+    state: State<'_, AppState>,
+    require: bool,
+    password: Option<String>,
+    hint: Option<String>,
+    current_password: Option<String>,
 ) -> Result<Value, String> {
-    // TODO impl
-    Ok(json!({ "success": false, "error": "尚未实现" }))
+    if require {
+        // 开启主密码
+        let pwd = password.ok_or("开启主密码需要提供密码".to_string())?;
+        
+        // 设置主密码
+        let hash = hash_password(&pwd);
+        state.db.set_master_password(&hash, hint.as_deref())
+            .map_err(|e| e.to_string())?;
+        
+        // 立即锁定 UI
+        {
+            let mut ui_locked = state.ui_locked.lock()
+                .map_err(|_| "Failed to lock state".to_string())?;
+            *ui_locked = true;
+        }
+        
+        log::info!("Master password enabled and UI locked");
+        
+    } else {
+        // 关闭主密码
+        let current_pwd = current_password.ok_or("关闭主密码需要验证当前密码".to_string())?;
+        
+        // 验证密码
+        let db_hash_opt = state.db.get_master_password_hash()
+            .map_err(|e| e.to_string())?;
+        
+        if let Some(stored_hash) = db_hash_opt {
+            let input_hash = hash_password(&current_pwd);
+            if stored_hash != input_hash {
+                return Ok(json!({
+                    "success": false,
+                    "error": "密码错误"
+                }));
+            }
+        } else {
+            return Ok(json!({
+                "success": false,
+                "error": "主密码未设置"
+            }));
+        }
+        
+        // 清除主密码
+        state.db.clear_master_password()
+            .map_err(|e| e.to_string())?;
+        
+        // 立即解锁 UI
+        {
+            let mut ui_locked = state.ui_locked.lock()
+                .map_err(|_| "Failed to lock state".to_string())?;
+            *ui_locked = false;
+        }
+        
+        log::info!("Master password disabled and UI unlocked");
+    }
+    
+    // 返回新状态
+    let new_state = security_get_state(state).await?;
+    
+    Ok(json!({
+        "success": true,
+        "state": new_state
+    }))
 }
 
 

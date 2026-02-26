@@ -188,14 +188,14 @@ export interface TauriAPI {
 
   onDataImported: (
     handler: (payload: { imported: number; skipped: number }) => void
-  ) => void;
+  ) => Promise<() => void>;
   onAutoExportDone?: (
     handler: (payload: {
       success: boolean;
       filePath?: string;
       error?: string;
     }) => void
-  ) => void;
+  ) => Promise<() => void>;
 
   // 笔记相关
   getNoteGroups(): Promise<SecureRecordGroup[]>;
@@ -238,7 +238,10 @@ export interface TauriAPI {
     currentPassword: string
   ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
   setRequireMasterPassword(
-    require: boolean
+    require: boolean,
+    password?: string,
+    hint?: string,
+    currentPassword?: string
   ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
 }
 
@@ -317,12 +320,12 @@ const realTauriAPI: TauriAPI = {
   importData: (data, options) => invoke('import_data', { data, options }),
 
   onDataImported: (handler) => {
-    listen('data-imported', (event) =>
+    return listen('data-imported', (event) =>
       handler(event.payload as { imported: number; skipped: number })
     );
   },
   onAutoExportDone: (handler) => {
-    listen('auto-export-done', (event) =>
+    return listen('auto-export-done', (event) =>
       handler(
         event.payload as { success: boolean; filePath?: string; error?: string }
       )
@@ -356,8 +359,13 @@ const realTauriAPI: TauriAPI = {
     }),
   clearMasterPassword: (currentPassword) =>
     invoke('security_clear_master_password', { currentPassword }),
-  setRequireMasterPassword: (require) =>
-    invoke('security_set_require_master_password', { require }),
+  setRequireMasterPassword: (require, password, hint, currentPassword) =>
+    invoke('security_set_require_master_password', { 
+      require, 
+      password, 
+      hint, 
+      currentPassword 
+    }),
 };
 
 /**

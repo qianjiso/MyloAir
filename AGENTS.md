@@ -39,10 +39,10 @@ MyloAir/
 
 ```bash
 # 开发模式
-cargo tauri dev
+npm run tauri:dev
 
 # 生产构建
-cargo tauri build
+npm run tauri:build
 
 # 仅检查 Rust 编译
 cargo check --manifest-path src-tauri/Cargo.toml

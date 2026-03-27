@@ -256,8 +256,8 @@ impl DatabaseService {
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
 
         if let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            let hash: String = row.get(0).map_err(|e| e.to_string())?;
-            Ok(Some(hash))
+            let hash: Option<String> = row.get(0).map_err(|e| e.to_string())?;
+            Ok(hash)
         } else {
             Ok(None)
         }
@@ -265,16 +265,26 @@ impl DatabaseService {
 
     /// 设置主密码
     pub fn set_master_password(&self, hash: &str, hint: Option<&str>) -> Result<(), String> {
+        self.set_master_password_with_require(hash, hint, true)
+    }
+
+    /// 设置主密码并指定是否要求解锁
+    pub fn set_master_password_with_require(
+        &self,
+        hash: &str,
+        hint: Option<&str>,
+        require_password: bool,
+    ) -> Result<(), String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         conn.execute(
             "INSERT INTO master_password (id, password_hash, hint, require_password, created_at, updated_at) 
-             VALUES (1, ?1, ?2, 1, datetime('now'), datetime('now'))
+             VALUES (1, ?1, ?2, ?3, datetime('now'), datetime('now'))
              ON CONFLICT(id) DO UPDATE SET 
              password_hash=excluded.password_hash, 
              hint=excluded.hint,
-             require_password=1,
+             require_password=excluded.require_password,
              updated_at=datetime('now')",
-            (hash, hint),
+            (hash, hint, if require_password { 1 } else { 0 }),
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -1002,6 +1012,46 @@ mod tests {
         db_service.delete_password(id).unwrap();
         let deleted = db_service.get_password(id).unwrap();
         assert!(deleted.is_none());
+    }
+
+    #[test]
+    fn test_master_password_hash_nullable_roundtrip() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_master_password_nullable.db");
+        let db_service = DatabaseService::new(db_path.to_str().unwrap());
+        db_service.initialize().unwrap();
+
+        db_service
+            .set_master_password("hash_value", Some("hint"))
+            .unwrap();
+        assert_eq!(
+            db_service.get_master_password_hash().unwrap(),
+            Some("hash_value".to_string())
+        );
+
+        db_service.clear_master_password().unwrap();
+        assert_eq!(db_service.get_master_password_hash().unwrap(), None);
+    }
+
+    #[test]
+    fn test_disable_require_does_not_clear_master_hash() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_disable_require.db");
+        let db_service = DatabaseService::new(db_path.to_str().unwrap());
+        db_service.initialize().unwrap();
+
+        db_service
+            .set_master_password("hash_value", Some("hint"))
+            .unwrap();
+        db_service.set_require_master_password(false).unwrap();
+
+        let (has_master, _hint, require) = db_service.get_master_password_config().unwrap();
+        assert!(has_master);
+        assert!(!require);
+        assert_eq!(
+            db_service.get_master_password_hash().unwrap(),
+            Some("hash_value".to_string())
+        );
     }
     #[test]
     fn test_group_crud() {

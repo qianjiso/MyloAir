@@ -208,19 +208,33 @@ const electronAPI = {
   
   // 安全相关
   getSecurityState: () => Promise.resolve({ ...store.security }),
+  getSecurityUiLockState: () =>
+    Promise.resolve({ locked: !!store.security.requireMasterPassword }),
+  lockSecurityUi: () => Promise.resolve({ success: true }),
   setMasterPassword: (password: string, _hint?: string) => {
     store.security.hasMasterPassword = true;
+    store.security.requireMasterPassword = true;
     return Promise.resolve({ success: true, state: store.security });
   },
-  verifyMasterPassword: (_password: string) => Promise.resolve({ success: true, state: store.security }),
+  verifyMasterPassword: (_password: string) =>
+    Promise.resolve({ success: true, state: store.security }),
   updateMasterPassword: (_currentPassword: string, _newPassword: string, _hint?: string) => Promise.resolve({ success: true }),
   clearMasterPassword: (_currentPassword: string) => {
     store.security.hasMasterPassword = false;
+    store.security.requireMasterPassword = false;
     return Promise.resolve({ success: true });
   },
-  setRequireMasterPassword: (require: boolean) => {
+  setRequireMasterPassword: (
+    require: boolean,
+    password?: string,
+    _hint?: string,
+    _currentPassword?: string
+  ) => {
+    if (require && !store.security.hasMasterPassword && password) {
+      store.security.hasMasterPassword = true;
+    }
     store.security.requireMasterPassword = require;
-    return Promise.resolve({ success: true });
+    return Promise.resolve({ success: true, state: { ...store.security } });
   },
 
   // Note management

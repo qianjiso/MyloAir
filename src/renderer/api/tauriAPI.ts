@@ -44,6 +44,14 @@ interface Password {
   tags?: string;
 }
 
+interface SecurityCommandResult {
+  success: boolean;
+  state?: MasterPasswordState;
+  error?: string;
+  errorCode?: string;
+  cooldownSeconds?: number;
+}
+
 /**
  * Tauri API 接口定义
  * 保持与原 ElectronAPI 接口兼容
@@ -239,27 +247,29 @@ export interface TauriAPI {
 
   // 安全相关
   getSecurityState(): Promise<MasterPasswordState>;
+  getSecurityUiLockState(): Promise<{ locked: boolean }>;
+  lockSecurityUi(): Promise<{ success: boolean }>;
   setMasterPassword(
     password: string,
     hint?: string
-  ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
+  ): Promise<SecurityCommandResult>;
   verifyMasterPassword(
     password: string
-  ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
+  ): Promise<SecurityCommandResult>;
   updateMasterPassword(
     currentPassword: string,
     newPassword: string,
     hint?: string
-  ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
+  ): Promise<SecurityCommandResult>;
   clearMasterPassword(
     currentPassword: string
-  ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
+  ): Promise<SecurityCommandResult>;
   setRequireMasterPassword(
     require: boolean,
     password?: string,
     hint?: string,
     currentPassword?: string
-  ): Promise<{ success: boolean; state?: MasterPasswordState; error?: string }>;
+  ): Promise<SecurityCommandResult>;
 }
 
 /**
@@ -369,6 +379,8 @@ const realTauriAPI: TauriAPI = {
 
   // 安全相关
   getSecurityState: () => invoke('security_get_state', {}),
+  getSecurityUiLockState: () => invoke('security_get_ui_lock_state', {}),
+  lockSecurityUi: () => invoke('security_lock_ui', {}),
   setMasterPassword: (password, hint) =>
     invoke('security_set_master_password', { password, hint }),
   verifyMasterPassword: (password) =>

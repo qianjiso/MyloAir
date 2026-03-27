@@ -14,11 +14,18 @@ use services::database::DatabaseService;
 use services::encryption::EncryptionService;
 use std::sync::Mutex;
 
+#[derive(Debug, Default)]
+pub struct UnlockThrottleState {
+    pub failed_attempts: u32,
+    pub cooldown_until: Option<std::time::Instant>,
+}
+
 /// 应用共享状态
 pub struct AppState {
     pub db: DatabaseService,
     pub encryption: EncryptionService,  // 应用级加密服务（始终可用）
     pub ui_locked: Mutex<bool>,         // UI 锁定状态
+    pub unlock_throttle: Mutex<UnlockThrottleState>, // 解锁失败节流状态
     pub backup_notification: Mutex<Option<(String, String, std::time::Instant)>>, // category, message, timestamp
 }
 
@@ -66,6 +73,7 @@ pub fn run() {
                 db: db_service, 
                 encryption: encryption_service,
                 ui_locked: Mutex::new(true),  // 默认锁定 UI
+                unlock_throttle: Mutex::new(UnlockThrottleState::default()),
                 backup_notification: Mutex::new(None),
             });
 

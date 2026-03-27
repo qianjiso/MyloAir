@@ -155,9 +155,12 @@ const App: React.FC = () => {
     const initSecurity = async () => {
       try {
         setCheckingSecurity(true);
-        const state = await securityService.getSecurityState();
+        const [state, lockState] = await Promise.all([
+          securityService.getSecurityState(),
+          securityService.getSecurityUiLockState(),
+        ]);
         setSecurityState(state);
-        const shouldLock = state.requireMasterPassword;
+        const shouldLock = state.requireMasterPassword ? lockState.locked : false;
         setLocked(shouldLock);
         if (!shouldLock) {
           await Promise.all([loadGroups(), loadRecentPasswords()]);
@@ -216,6 +219,7 @@ const App: React.FC = () => {
     const minutes = Math.max(1, securityState.autoLockMinutes || 5);
     lockTimerRef.current = setTimeout(
       () => {
+        securityService.lockSecurityUi().catch(() => undefined);
         setLocked(true);
       },
       minutes * 60 * 1000
@@ -286,9 +290,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const refreshState = async () => {
       try {
-        const state = await securityService.getSecurityState();
+        const [state, lockState] = await Promise.all([
+          securityService.getSecurityState(),
+          securityService.getSecurityUiLockState(),
+        ]);
         setSecurityState(state);
-        const nextLocked = state.requireMasterPassword ? locked : false;
+        const nextLocked = state.requireMasterPassword ? lockState.locked : false;
         setLocked(nextLocked);
         if (state.requireMasterPassword && !nextLocked) {
           resetAutoLockTimer();

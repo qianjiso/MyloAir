@@ -74,7 +74,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   const [securityState, setSecurityState] =
     useState<MasterPasswordState | null>(null);
   const [masterModalVisible, setMasterModalVisible] = useState(false);
-  const [masterMode, setMasterMode] = useState<'set' | 'update' | 'remove' | 'enable' | 'disable'>(
+  const [masterMode, setMasterMode] = useState<'set' | 'update' | 'disable'>(
     'set'
   );
   const [masterSaving, setMasterSaving] = useState(false);
@@ -526,7 +526,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       setLoading(true);
       const res = await settingsService.resetAllSettingsToDefault();
       if (!res.success) throw new Error(res.error || '重置失败');
-      await securityService.setRequireMasterPassword(false);
       const settingsData = await settingsService.listSettings();
       const secState = await securityService.getSecurityState();
       const backupConfig = await reloadBackupConfig();
@@ -654,29 +653,14 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       const values = await masterForm.validateFields();
       let res;
 
-      if (masterMode === 'enable') {
-        // 开启主密码
-        res = await window.electronAPI.setRequireMasterPassword(
-          true,
-          values.newPassword,
-          values.hint
-        );
+      if (masterMode === 'disable') {
+        res = await securityService.setRequireMasterPassword(false, {
+          currentPassword: values.currentPassword,
+        });
         if (res.success && res.state) {
-          message.success('主密码已开启,应用已锁定');
-        }
-      } else if (masterMode === 'disable') {
-        // 关闭主密码
-        res = await window.electronAPI.setRequireMasterPassword(
-          false,
-          undefined,
-          undefined,
-          values.currentPassword
-        );
-        if (res.success && res.state) {
-          message.success('主密码已关闭,应用已解锁');
+          message.success('已关闭主密码解锁要求');
         }
       } else if (masterMode === 'update') {
-        // 修改主密码
         res = await window.electronAPI.updateMasterPassword(
           values.currentPassword,
           values.newPassword,
@@ -686,11 +670,12 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
           message.success('主密码已更新');
         }
       } else {
-        // 兼容旧的 set/remove 模式(如果还有的话)
-        if (masterMode === 'remove') {
-          res = await window.electronAPI.clearMasterPassword(values.currentPassword);
-        } else {
-          res = await window.electronAPI.setMasterPassword(values.newPassword, values.hint);
+        res = await window.electronAPI.setMasterPassword(
+          values.newPassword,
+          values.hint
+        );
+        if (res.success && res.state) {
+          message.success('主密码已设置');
         }
       }
 
@@ -718,6 +703,47 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       setMasterSaving(false);
     }
   };
+
+  const handleRequireToggle = useCallback(
+    async (checked: boolean) => {
+      if (!securityState?.hasMasterPassword) {
+        message.warning('请先设置主密码，再启用解锁要求');
+        form.setFieldsValue({ requireMasterPassword: false });
+        return;
+      }
+
+      if (!checked) {
+        setMasterMode('disable');
+        masterForm.resetFields();
+        setMasterModalVisible(true);
+        form.setFieldsValue({
+          requireMasterPassword: securityState.requireMasterPassword,
+        });
+        return;
+      }
+
+      setMasterSaving(true);
+      try {
+        const res = await securityService.setRequireMasterPassword(true);
+        if (!res.success) throw new Error(res.error || '启用失败');
+        setSecurityState(res.state || null);
+        form.setFieldsValue({
+          requireMasterPassword: res.state?.requireMasterPassword ?? true,
+        });
+        message.success('已开启主密码解锁，应用已立即锁定');
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '启用失败';
+        message.error(msg);
+        reportError('SETTINGS_MASTER_REQUIRE_ENABLE_FAILED', '开启主密码解锁失败', error);
+        form.setFieldsValue({
+          requireMasterPassword: securityState?.requireMasterPassword ?? false,
+        });
+      } finally {
+        setMasterSaving(false);
+      }
+    },
+    [form, masterForm, securityState]
+  );
 
   const tabItems = [
     {
@@ -757,20 +783,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       style={{ marginBottom: 12 }}
                     >
                       <Switch
-                        checked={securityState?.hasMasterPassword && securityState?.requireMasterPassword}
-                        onChange={(checked) => {
-                          if (checked) {
-                            // 开启:弹出设置密码对话框
-                            setMasterMode('enable');
-                            masterForm.resetFields();
-                            setMasterModalVisible(true);
-                          } else {
-                            // 关闭:弹出验证密码对话框
-                            setMasterMode('disable');
-                            masterForm.resetFields();
-                            setMasterModalVisible(true);
-                          }
-                        }}
+                        checked={!!securityState?.requireMasterPassword}
+                        disabled={!securityState?.hasMasterPassword}
+                        loading={masterSaving}
+                        onChange={handleRequireToggle}
                       />
                     </Form.Item>
                   </Col>
@@ -789,9 +805,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                     style={{ width: '100%' }}
                   >
                     <Typography.Text strong>
-                      {securityState?.hasMasterPassword
-                        ? '主密码保护开启'
-                        : '主密码未开启'}
+                      {securityState?.requireMasterPassword
+                        ? '主密码解锁已开启'
+                        : securityState?.hasMasterPassword
+                          ? '主密码已设置（解锁已关闭）'
+                          : '主密码未设置'}
                     </Typography.Text>
                     <Typography.Text
                       type="secondary"
@@ -800,18 +818,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       {securitySummary}
                     </Typography.Text>
                     <Space wrap style={{ marginTop: 4 }}>
-                      {securityState?.hasMasterPassword && (
                       <Button
                         type="primary"
                         onClick={() => {
-                          setMasterMode('update');
+                          setMasterMode(
+                            securityState?.hasMasterPassword ? 'update' : 'set'
+                          );
                           masterForm.resetFields();
                           setMasterModalVisible(true);
                         }}
                       >
-                        修改主密码
+                        {securityState?.hasMasterPassword ? '修改主密码' : '设置主密码'}
                       </Button>
-                    )}  </Space>
+                    </Space>
                   </Space>
                 </div>
               </Card>
@@ -1508,8 +1527,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
           <Space size="small">
             <Tag color={securityState?.hasMasterPassword ? 'green' : 'orange'}>
               {securityState?.hasMasterPassword
-                ? '主密码已开启'
-                : '主密码未开启'}
+                ? '主密码已设置'
+                : '主密码未设置'}
             </Tag>
             <Tag color={autoExportStatus ? 'blue' : 'default'}>
               {autoExportStatus ? '自动导出开启' : '自动导出关闭'}
@@ -1558,15 +1577,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
 
       <Modal
         title={
-          masterMode === 'enable'
-            ? '设置主密码'
-            : masterMode === 'disable'
-              ? '关闭主密码'
-              : masterMode === 'update'
-                ? '修改主密码'
-                : masterMode === 'remove'
-                  ? '关闭主密码'
-                  : '设置主密码'
+          masterMode === 'disable'
+            ? '关闭主密码解锁要求'
+            : masterMode === 'update'
+              ? '修改主密码'
+              : '设置主密码'
         }
         open={masterModalVisible}
         onCancel={() => {
@@ -1585,8 +1600,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         destroyOnClose
       >
         <Form layout="vertical" form={masterForm}>
-          {/* 需要输入当前密码的模式: disable, update, remove */}
-          {(masterMode === 'disable' || masterMode === 'update' || masterMode === 'remove') && (
+          {/* 需要输入当前密码的模式: disable, update */}
+          {(masterMode === 'disable' || masterMode === 'update') && (
             <Form.Item
               label="当前主密码"
               name="currentPassword"
@@ -1595,8 +1610,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
               <Input.Password />
             </Form.Item>
           )}
-          {/* 需要输入新密码的模式: enable, update, set */}
-          {(masterMode === 'enable' || masterMode === 'update' || masterMode === 'set') && (
+          {/* 需要输入新密码的模式: update, set */}
+          {(masterMode === 'update' || masterMode === 'set') && (
             <>
               <Form.Item
                 label="新主密码"
@@ -1633,11 +1648,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
               </Form.Item>
             </>
           )}
-          {/* 警告提示 */}
-          {(masterMode === 'disable' || masterMode === 'remove') && (
+          {masterMode === 'disable' && (
             <Alert
-              type="warning"
-              message="⚠️ 关闭主密码后，应用将不再需要密码解锁，请确认已备份数据。"
+              type="info"
+              message="关闭后将不再要求输入主密码解锁，但主密码仍会保留，可随时重新开启。"
             />
           )}
         </Form>

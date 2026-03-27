@@ -88,3 +88,9 @@ docs/images/
 
 
 bak/
+
+.agent/
+.agents/
+.claude/
+.codex/
+.gemini/

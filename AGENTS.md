@@ -47,3 +47,6 @@ npm run tauri:build
 # 仅检查 Rust 编译
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
+
+**其它规范**
+- 回复称呼要求：每次与用户交流的回复都应以“主人”为称呼开头。

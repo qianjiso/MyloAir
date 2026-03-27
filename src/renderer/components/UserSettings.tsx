@@ -26,8 +26,17 @@ import {
   CheckCircleOutlined,
   ToolTwoTone,
   FolderOpenOutlined,
+  CloudUploadOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
-import type { MasterPasswordState, UserSetting } from '../../shared/types';
+import type {
+  BackupCloudTestInput,
+  BackupConfig,
+  BackupRunStatus,
+  SaveBackupConfigInput,
+  MasterPasswordState,
+  UserSetting,
+} from '../../shared/types';
 import * as settingsService from '../services/settings';
 import { useIntegrity } from '../hooks/useIntegrity';
 import { reportError } from '../utils/logging';
@@ -53,6 +62,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     'autoExportIntervalMinutes',
     form
   );
+  const targetMode = Form.useWatch('targetMode', form);
   const requireMasterPassword = Form.useWatch('requireMasterPassword', form);
   const autoLockMinutes = Form.useWatch('autoLockMinutes', form);
   const [initialAutoExportEnabled, setInitialAutoExportEnabled] = useState<
@@ -71,6 +81,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   const [masterForm] = Form.useForm();
   const [selectingExportDirectory, setSelectingExportDirectory] =
     useState(false);
+  const [cloudTesting, setCloudTesting] = useState(false);
+  const [cloudUploading, setCloudUploading] = useState(false);
+  const [savedBackupConfig, setSavedBackupConfig] = useState<BackupConfig | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState<'security' | 'ui' | 'data'>(
     'security'
   );
@@ -80,10 +95,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
   );
   const autoExportStatus =
     autoExportEnabled ?? initialAutoExportEnabled ?? false;
+  const hasSavedArchivePassword = savedBackupConfig?.hasArchivePassword ?? false;
+  const hasSavedSecretKey = savedBackupConfig?.hasSecretKey ?? false;
+  const secretIdMasked = savedBackupConfig?.secretIdMasked ?? '';
+  const savedManualRun = savedBackupConfig?.lastManualRun;
+  const savedAutoRun = savedBackupConfig?.lastAutoRun;
+  const failureCooldownMinutes =
+    savedBackupConfig?.failureNotificationCooldownMinutes ?? 5;
 
   const autoExportSummary = useMemo(() => {
     if (!autoExportStatus) return '自动导出未开启';
-    const directory = autoExportDirectory || '未选择目录';
+    const targetText = targetMode === 'cos'
+      ? `腾讯云 COS${form.getFieldValue('bucket') ? ` · ${form.getFieldValue('bucket')}` : ''}`
+      : autoExportDirectory || '未选择目录';
     const weekMap: Record<number, string> = {
       1: '周一',
       2: '周二',
@@ -97,16 +121,17 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     const dayOfWeekText = weekMap[Number(autoExportDayOfWeek)] || '周一';
     const dayOfMonthText = autoExportDayOfMonth || 1;
     if (autoExportFrequency === 'every_minute') {
-      return `每 ${autoExportIntervalMinutes || 60} 分钟导出 · ${directory}`;
+      return `每 ${autoExportIntervalMinutes || 60} 分钟导出 · ${targetText}`;
     }
     if (autoExportFrequency === 'weekly') {
-      return `每周${dayOfWeekText} ${timeText} · ${directory}`;
+      return `每周${dayOfWeekText} ${timeText} · ${targetText}`;
     }
     if (autoExportFrequency === 'monthly') {
-      return `每月${dayOfMonthText} 日 ${timeText} · ${directory}`;
+      return `每月${dayOfMonthText} 日 ${timeText} · ${targetText}`;
     }
-    return `每日 ${timeText} · ${directory}`;
+    return `每日 ${timeText} · ${targetText}`;
   }, [
+    form,
     autoExportDirectory,
     autoExportFrequency,
     autoExportIntervalMinutes,
@@ -114,6 +139,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     autoExportDayOfWeek,
     autoExportStatus,
     autoExportTimeOfDay,
+    targetMode,
   ]);
   const securitySummary = useMemo(() => {
     const lock = Math.max(1, Number(autoLockMinutes || 5));
@@ -125,8 +151,58 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     return `主密码未设置 · ${lock} 分钟自动锁定`;
   }, [autoLockMinutes, requireMasterPassword, securityState]);
 
+  const formatRunSummary = useCallback((run?: BackupRunStatus | null) => {
+    if (!run?.at) return '暂无记录';
+    const resultText =
+      run.result === 'success' ? '成功' : run.result === 'failed' ? '失败' : '未知';
+    const targetText = run.target === 'cos' ? '云端' : run.target === 'local' ? '本地' : '未知目标';
+    const errorText = run.error ? ` · ${run.error}` : '';
+    return `${run.at} · ${targetText} · ${resultText}${errorText}`;
+  }, []);
+
+  const getErrorMessage = useCallback((error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+    if (typeof error === 'string' && error.trim()) {
+      return error;
+    }
+    if (error && typeof error === 'object' && 'message' in error) {
+      const messageValue = (error as { message?: unknown }).message;
+      if (typeof messageValue === 'string' && messageValue.trim()) {
+        return messageValue;
+      }
+    }
+    if (error && typeof error === 'object' && 'error' in error) {
+      const errorValue = (error as { error?: unknown }).error;
+      if (typeof errorValue === 'string' && errorValue.trim()) {
+        return errorValue;
+      }
+    }
+    return fallback;
+  }, []);
+
+  const buildBackupConfigInput = useCallback(
+    (values: Record<string, any>): SaveBackupConfigInput => ({
+      targetMode: (values.targetMode || 'local') as 'local' | 'cos',
+      retentionCount: Number(values.retentionCount || 30),
+      endpoint: values.endpoint || '',
+      bucket: values.bucket || '',
+      region: values.region || '',
+      pathPrefix: values.pathPrefix || '',
+      secretId: values.secretId || undefined,
+      secretKey: values.secretKey || undefined,
+      exportDefaultPassword: values.exportDefaultPassword || undefined,
+    }),
+    []
+  );
+
   const mapSettingsToForm = useCallback(
-    (settingsData: UserSetting[], secState: MasterPasswordState | null) => {
+    (
+      settingsData: UserSetting[],
+      secState: MasterPasswordState | null,
+      backupConfig: BackupConfig | null
+    ) => {
       const formData: Record<string, any> = {};
       settingsData.forEach((setting: UserSetting) => {
         let key = setting.key;
@@ -176,11 +252,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         language: formData.language || 'zh-CN',
         uiListDensity: formData.uiListDensity || 'comfortable',
         uiFontSize: formData.uiFontSize || 'normal',
-        exportDefaultPassword: formData.exportDefaultPassword || '',
-        exportFormat: normalizedExportFormat,
+        exportDefaultPassword: '',
+        exportFormat: backupConfig?.exportFormat || normalizedExportFormat,
         autoExportEnabled: formData.autoExportEnabled ?? false,
         autoExportFrequency: formData.autoExportFrequency || 'daily',
         autoExportDirectory: formData.autoExportDirectory || '',
+        targetMode: backupConfig?.targetMode || 'local',
+        retentionCount: backupConfig?.retentionCount ?? 30,
+        endpoint: backupConfig?.endpoint || '',
+        bucket: backupConfig?.bucket || '',
+        region: backupConfig?.region || '',
+        pathPrefix: backupConfig?.pathPrefix || '',
+        secretId: '',
+        secretKey: '',
         // 自动导出时间细节
         autoExportTimeOfDay: formData.autoExportTimeOfDay || '02:00',
         autoExportDayOfWeek: formData.autoExportDayOfWeek ?? 1,
@@ -208,6 +292,21 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     [normalizeExportFormat]
   );
 
+  const reloadBackupConfig = useCallback(async () => {
+    const backupConfig = await backupService.getBackupConfig();
+    setSavedBackupConfig(backupConfig);
+    form.setFieldsValue({
+      targetMode: backupConfig.targetMode,
+      retentionCount: backupConfig.retentionCount,
+      endpoint: backupConfig.endpoint,
+      bucket: backupConfig.bucket,
+      region: backupConfig.region,
+      pathPrefix: backupConfig.pathPrefix,
+      exportFormat: backupConfig.exportFormat,
+    });
+    return backupConfig;
+  }, [form]);
+
   const loadSecurityState = useCallback(async () => {
     const state = await securityService.getSecurityState();
     setSecurityState(state);
@@ -223,8 +322,9 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         setLoading(true);
         const settingsData = await settingsService.listSettings();
         const secState = await securityService.getSecurityState();
+        const backupConfig = await reloadBackupConfig();
         setSecurityState(secState);
-        const mapped = mapSettingsToForm(settingsData, secState);
+        const mapped = mapSettingsToForm(settingsData, secState, backupConfig);
         form.setFieldsValue(mapped);
         setInitialAutoExportEnabled(!!mapped.autoExportEnabled);
       } catch (error) {
@@ -235,7 +335,30 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       }
     };
     load();
-  }, [form, mapSettingsToForm]);
+  }, [form, mapSettingsToForm, reloadBackupConfig]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    const bind = async () => {
+      if (!window.electronAPI.onAutoExportDone) return;
+      unlisten = await window.electronAPI.onAutoExportDone(async (payload) => {
+        try {
+          await reloadBackupConfig();
+        } catch (error) {
+          reportError('SETTINGS_RELOAD_BACKUP_STATUS_FAILED', '刷新备份状态失败', error);
+        }
+        if (payload.success) {
+          message.success('自动备份执行成功');
+        } else {
+          message.error(payload.error || '自动备份执行失败');
+        }
+      });
+    };
+    bind();
+    return () => {
+      unlisten?.();
+    };
+  }, [reloadBackupConfig]);
 
   const handleSave = async () => {
     try {
@@ -243,11 +366,15 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       const values = form.getFieldsValue();
       const exportFormat = normalizeExportFormat(values.exportFormat);
       const autoExportEnabled = !!values.autoExportEnabled;
+      const nextTargetMode = values.targetMode || 'local';
+      const hasArchivePasswordInput =
+        !!values.exportDefaultPassword &&
+        String(values.exportDefaultPassword).trim().length >= 4;
       if (
         autoExportEnabled &&
         exportFormat === 'encrypted_zip' &&
-        (!values.exportDefaultPassword ||
-          String(values.exportDefaultPassword).length < 4)
+        !hasArchivePasswordInput &&
+        !hasSavedArchivePassword
       ) {
         message.error('开启自动导出并选择加密ZIP时，请先设置至少4位的密码');
         setLoading(false);
@@ -255,10 +382,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       }
       if (
         autoExportEnabled &&
+        nextTargetMode === 'local' &&
         (!values.autoExportDirectory ||
           !String(values.autoExportDirectory).trim())
       ) {
-        message.error('开启自动导出时，请先选择导出目录');
+        message.error('开启本地自动导出时，请先选择导出目录');
+        setLoading(false);
+        return;
+      }
+      if (
+        nextTargetMode === 'cos' &&
+        (!values.endpoint || !values.bucket || !values.region)
+      ) {
+        message.error('启用云备份前，请先完整填写 Endpoint、Bucket 和 Region');
         setLoading(false);
         return;
       }
@@ -273,11 +409,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
           '自动锁定时间（秒）'
         );
       }
-      if (typeof values.requireMasterPassword === 'boolean') {
-        await securityService.setRequireMasterPassword(
-          values.requireMasterPassword
-        );
-      }
+      // 主密码启停必须走专门的验证弹窗流程，不能在通用“保存设置”里顺带触发。
 
       // 保存其他设置项
       for (const [key, value] of Object.entries(values)) {
@@ -295,6 +427,14 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
             'autoExportDayOfWeek',
             'autoExportDayOfMonth',
             'autoExportIntervalMinutes',
+            'targetMode',
+            'retentionCount',
+            'endpoint',
+            'bucket',
+            'region',
+            'pathPrefix',
+            'secretId',
+            'secretKey',
           ].includes(key)
         )
           continue;
@@ -307,13 +447,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         'string',
         'backup',
         '自动导出格式'
-      );
-      await settingsService.setSetting(
-        'backup.auto_export_password',
-        values.exportDefaultPassword || '',
-        'string',
-        'backup',
-        '自动导出压缩包密码'
       );
       await settingsService.setSetting(
         'backup.auto_export_directory',
@@ -369,11 +502,19 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
         'backup',
         '自动导出间隔（分钟，every_minute 模式）'
       );
+      await backupService.saveBackupConfig(buildBackupConfigInput(values));
+      await reloadBackupConfig();
+      form.setFieldsValue({
+        exportDefaultPassword: '',
+        secretId: '',
+        secretKey: '',
+      });
       await loadSecurityState();
       message.success('设置保存成功');
       if (onClose) onClose();
     } catch (error) {
-      message.error('保存设置失败');
+      const msg = getErrorMessage(error, '保存设置失败');
+      message.error(msg);
       reportError('SETTINGS_SAVE_FAILED', '保存设置失败', error);
     } finally {
       setLoading(false);
@@ -388,8 +529,9 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
       await securityService.setRequireMasterPassword(false);
       const settingsData = await settingsService.listSettings();
       const secState = await securityService.getSecurityState();
+      const backupConfig = await reloadBackupConfig();
       setSecurityState(secState);
-      const mapped = mapSettingsToForm(settingsData, secState);
+      const mapped = mapSettingsToForm(settingsData, secState, backupConfig);
       form.setFieldsValue(mapped);
       setInitialAutoExportEnabled(!!mapped.autoExportEnabled);
       await loadSecurityState();
@@ -445,6 +587,64 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
     } catch (error) {
       message.error('完整性修复失败');
       reportError('SETTINGS_REPAIR_INTEGRITY_FAILED', '完整性修复失败', error);
+    }
+  };
+
+  const handleTestCloudConnection = async () => {
+    try {
+      const values = form.getFieldsValue();
+      setCloudTesting(true);
+      const payload: BackupCloudTestInput = {
+        endpoint: values.endpoint || '',
+        bucket: values.bucket || '',
+        region: values.region || '',
+        pathPrefix: values.pathPrefix || '',
+        exportDefaultPassword: values.exportDefaultPassword || '',
+      };
+      const secretId = String(values.secretId || '').trim();
+      if (secretId) {
+        payload.secretId = secretId;
+      }
+      const secretKey = String(values.secretKey || '').trim();
+      if (secretKey) {
+        payload.secretKey = secretKey;
+      }
+      const result = await backupService.testBackupCloudConnection(payload);
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+      await backupService.saveBackupConfig(buildBackupConfigInput(values));
+      await reloadBackupConfig();
+      form.setFieldsValue({
+        exportDefaultPassword: '',
+        secretId: '',
+        secretKey: '',
+      });
+      const successText = result.warning
+        ? `${result.message}（${result.warning}）`
+        : result.message;
+      message.success(`${successText}，云备份配置已保存`);
+    } catch (error) {
+      const msg = getErrorMessage(error, '连接测试失败');
+      message.error(msg);
+      reportError('SETTINGS_TEST_CLOUD_CONNECTION_FAILED', '测试云备份连接失败', error);
+    } finally {
+      setCloudTesting(false);
+    }
+  };
+
+  const handleManualCloudBackup = async () => {
+    try {
+      setCloudUploading(true);
+      const file = await backupService.triggerManualCloudBackup();
+      await reloadBackupConfig();
+      message.success(file ? `云备份上传成功：${file}` : '云备份上传成功');
+    } catch (error) {
+      const msg = getErrorMessage(error, '云备份上传失败');
+      message.error(msg);
+      reportError('SETTINGS_MANUAL_CLOUD_BACKUP_FAILED', '手动云备份失败', error);
+    } finally {
+      setCloudUploading(false);
     }
   };
 
@@ -785,6 +985,31 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item
+                      label="备份目标"
+                      name="targetMode"
+                      style={{ marginBottom: 12 }}
+                    >
+                      <Select placeholder="选择备份目标">
+                        <Option value="local">本地目录</Option>
+                        <Option value="cos">腾讯云 COS</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      label="保留份数"
+                      name="retentionCount"
+                      tooltip="仅保留最近 N 份备份，默认 30"
+                      style={{ marginBottom: 12 }}
+                    >
+                      <InputNumber min={1} max={365} style={{ width: '100%' }} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item
                       label="默认导出格式"
                       name="exportFormat"
                       style={{ marginBottom: 12 }}
@@ -802,10 +1027,16 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       tooltip="用于加密ZIP导出，至少4位。未设置则无法快速导出加密包。"
                       rules={[{ min: 4, message: '至少4位' }]}
                       style={{ marginBottom: 12 }}
+                      extra={
+                        hasSavedArchivePassword
+                          ? '已保存加密密码。留空表示保持不变。'
+                          : undefined
+                      }
                     >
                       <Input.Password
-                        placeholder="可选，至少4位"
-                        disabled={!autoExportEnabled}
+                        placeholder={
+                          hasSavedArchivePassword ? '留空表示保持当前密码' : '可选，至少4位'
+                        }
                       />
                     </Form.Item>
                   </Col>
@@ -834,20 +1065,20 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                     <Form.Item
                       label="自动导出目录"
                       name="autoExportDirectory"
-                      tooltip="必须选择导出目录，未选择时自动导出不会运行"
+                      tooltip="目标为本地目录时必须选择导出目录"
                       style={{ marginBottom: 12 }}
                     >
                       <Input
                         placeholder="选择自动导出保存目录"
                         readOnly
-                        disabled={!autoExportEnabled}
+                        disabled={!autoExportEnabled || targetMode !== 'local'}
                         addonAfter={
                           <Button
                             size="small"
                             icon={<FolderOpenOutlined />}
                             onClick={handlePickExportDirectory}
                             loading={selectingExportDirectory}
-                            disabled={!autoExportEnabled}
+                            disabled={!autoExportEnabled || targetMode !== 'local'}
                           >
                             选择
                           </Button>
@@ -954,6 +1185,139 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onClose }) => {
                       </Form.Item>
                     </Col>
                   </Row>
+                )}
+
+                {targetMode === 'cos' && (
+                  <>
+                    <Collapse
+                      bordered={false}
+                      defaultActiveKey={['cloud']}
+                      items={[
+                        {
+                          key: 'cloud',
+                          label: '云备份配置',
+                          children: (
+                            <>
+                              <Alert
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 12 }}
+                                message="云端仅上传加密 ZIP，AK/SK 将加密存储到本地数据库。"
+                              />
+                              <Row gutter={12}>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="Endpoint"
+                                    name="endpoint"
+                                    style={{ marginBottom: 12 }}
+                                  >
+                                    <Input placeholder="例如 https://cos.ap-shanghai.myqcloud.com" />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="Bucket"
+                                    name="bucket"
+                                    style={{ marginBottom: 12 }}
+                                  >
+                                    <Input placeholder="例如 my-bucket-1234567890" />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                              <Row gutter={12}>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="Region"
+                                    name="region"
+                                    style={{ marginBottom: 12 }}
+                                  >
+                                    <Input placeholder="例如 ap-shanghai" />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="Path Prefix"
+                                    name="pathPrefix"
+                                    style={{ marginBottom: 12 }}
+                                  >
+                                    <Input placeholder="例如 backups/myloair" />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                              <Row gutter={12}>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="SecretId (AK)"
+                                    name="secretId"
+                                    style={{ marginBottom: 12 }}
+                                    extra={
+                                      secretIdMasked
+                                        ? `已保存：${secretIdMasked}；输入新值将覆盖`
+                                        : undefined
+                                    }
+                                  >
+                                    <Input placeholder="输入新的 AK，留空保持不变" />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                  <Form.Item
+                                    label="SecretKey (SK)"
+                                    name="secretKey"
+                                    style={{ marginBottom: 12 }}
+                                    extra={
+                                      hasSavedSecretKey
+                                        ? '已保存 SK；输入新值将覆盖，当前不会明文回显'
+                                        : undefined
+                                    }
+                                  >
+                                    <Input.Password placeholder="输入新的 SK，留空保持不变" />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                              <Space wrap>
+                                <Button
+                                  icon={<ApiOutlined />}
+                                  onClick={handleTestCloudConnection}
+                                  loading={cloudTesting}
+                                >
+                                  测试连接
+                                </Button>
+                                <Button
+                                  type="primary"
+                                  icon={<CloudUploadOutlined />}
+                                  onClick={handleManualCloudBackup}
+                                  loading={cloudUploading}
+                                >
+                                  立即上传云备份
+                                </Button>
+                              </Space>
+                            </>
+                          ),
+                        },
+                      ]}
+                    />
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: '12px',
+                        background: '#f7f8fa',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Typography.Text strong style={{ display: 'block' }}>
+                        最近备份状态
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+                        手动备份：{formatRunSummary(savedManualRun)}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+                        自动备份：{formatRunSummary(savedAutoRun)}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+                        自动失败通知冷却：同类错误 {failureCooldownMinutes} 分钟内不重复提醒
+                      </Typography.Text>
+                    </div>
+                  </>
                 )}
               </Card>
             </Col>

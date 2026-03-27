@@ -19,6 +19,7 @@ pub struct AppState {
     pub db: DatabaseService,
     pub encryption: EncryptionService,  // 应用级加密服务（始终可用）
     pub ui_locked: Mutex<bool>,         // UI 锁定状态
+    pub backup_notification: Mutex<Option<(String, String, std::time::Instant)>>, // category, message, timestamp
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -65,7 +66,10 @@ pub fn run() {
                 db: db_service, 
                 encryption: encryption_service,
                 ui_locked: Mutex::new(true),  // 默认锁定 UI
+                backup_notification: Mutex::new(None),
             });
+
+            commands::backup::start_backup_scheduler(app.handle().clone());
 
             // 显示窗口
             if let Some(window) = app.get_webview_window("main") {
@@ -130,6 +134,10 @@ pub fn run() {
             commands::backup::import_data,
             commands::backup::pick_export_path,
             commands::backup::pick_export_directory,
+            commands::backup::get_backup_config,
+            commands::backup::save_backup_config,
+            commands::backup::test_backup_cloud_connection,
+            commands::backup::trigger_manual_cloud_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

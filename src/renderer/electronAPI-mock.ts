@@ -14,6 +14,19 @@ const store = {
     hint: '',
     autoLockMinutes: 5,
     lastUnlockAt: ''
+  },
+  backupConfig: {
+    targetMode: 'local',
+    retentionCount: 30,
+    endpoint: '',
+    bucket: '',
+    region: '',
+    pathPrefix: '',
+    secretIdMasked: null,
+    hasSecretKey: false,
+    hasArchivePassword: false,
+    lastManualRun: {},
+    lastAutoRun: {}
   }
 };
 
@@ -146,6 +159,52 @@ const electronAPI = {
   // 文件操作
   exportData: () => Promise.resolve({ success: true, data: JSON.stringify(store) }),
   importData: (_data: number[], _options?: any) => Promise.resolve({ success: true }),
+  getBackupConfig: () =>
+    Promise.resolve({
+      targetMode: store.backupConfig.targetMode,
+      autoExportEnabled: false,
+      autoExportFrequency: 'daily',
+      autoExportDirectory: '',
+      exportFormat: 'json',
+      autoExportTimeOfDay: '02:00',
+      autoExportDayOfWeek: 1,
+      autoExportDayOfMonth: 1,
+      autoExportIntervalMinutes: 60,
+      retentionCount: store.backupConfig.retentionCount,
+      cloudProvider: 'cos',
+      endpoint: store.backupConfig.endpoint,
+      bucket: store.backupConfig.bucket,
+      region: store.backupConfig.region,
+      pathPrefix: store.backupConfig.pathPrefix,
+      secretIdMasked: store.backupConfig.secretIdMasked,
+      hasSecretKey: store.backupConfig.hasSecretKey,
+      hasArchivePassword: store.backupConfig.hasArchivePassword,
+      failureNotificationCooldownMinutes: 5,
+      lastManualRun: store.backupConfig.lastManualRun,
+      lastAutoRun: store.backupConfig.lastAutoRun,
+    }),
+  saveBackupConfig: (input: any) => {
+    store.backupConfig = {
+      ...store.backupConfig,
+      ...input,
+      secretIdMasked: input.secretId ? 'AKID****MOCK' : store.backupConfig.secretIdMasked,
+      hasSecretKey: input.secretKey ? true : store.backupConfig.hasSecretKey,
+      hasArchivePassword: input.exportDefaultPassword ? true : store.backupConfig.hasArchivePassword,
+    };
+    return Promise.resolve({ success: true });
+  },
+  testBackupCloudConnection: () =>
+    Promise.resolve({ success: true, message: 'Mock connection ok', warning: null }),
+  triggerManualCloudBackup: () => {
+    store.backupConfig.lastManualRun = {
+      at: new Date().toISOString(),
+      result: 'success',
+      target: 'cos',
+      file: 'myloair-backup-mock.zip',
+      error: null,
+    };
+    return Promise.resolve({ success: true, file: 'myloair-backup-mock.zip' });
+  },
   
   // 安全相关
   getSecurityState: () => Promise.resolve({ ...store.security }),

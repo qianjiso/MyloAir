@@ -35,6 +35,10 @@ hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
 sha2 = "0.10"
+hmac = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+percent-encoding = "2.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 # 数据库
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -54,4 +58,3 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
-

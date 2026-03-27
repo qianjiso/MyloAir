@@ -19,6 +19,10 @@ import type {
   SecureRecord,
   SecureRecordGroup,
   MasterPasswordState,
+  BackupConfig,
+  SaveBackupConfigInput,
+  BackupCloudTestInput,
+  BackupCloudTestResult,
 } from '../../shared/types';
 
 /**
@@ -197,6 +201,19 @@ export interface TauriAPI {
     }) => void
   ) => Promise<() => void>;
 
+  getBackupConfig(): Promise<BackupConfig>;
+  saveBackupConfig(
+    input: SaveBackupConfigInput
+  ): Promise<{ success: boolean; error?: string }>;
+  testBackupCloudConnection(
+    input: BackupCloudTestInput
+  ): Promise<BackupCloudTestResult>;
+  triggerManualCloudBackup(): Promise<{
+    success: boolean;
+    file?: string;
+    error?: string;
+  }>;
+
   // 笔记相关
   getNoteGroups(): Promise<SecureRecordGroup[]>;
   getNoteGroupTree(parentId?: number): Promise<SecureRecordGroup[]>;
@@ -283,7 +300,7 @@ const realTauriAPI: TauriAPI = {
   getUserSettings: (category) => invoke('get_user_settings', { category }),
   getUserSetting: (key) => invoke('get_user_setting', { key }),
   setUserSetting: (key, value, type, category, description) =>
-    invoke('set_user_setting', { key, value, type, category, description }),
+    invoke('set_user_setting', { key, value, type_: type, category, description }),
   updateUserSetting: (key, value) =>
     invoke('update_user_setting', { key, value }),
   deleteUserSetting: (key) => invoke('delete_user_setting', { key }),
@@ -318,6 +335,11 @@ const realTauriAPI: TauriAPI = {
   pickExportDirectory: (options) =>
     invoke('pick_export_directory', { options }),
   importData: (data, options) => invoke('import_data', { data, options }),
+  getBackupConfig: () => invoke('get_backup_config', {}),
+  saveBackupConfig: (input) => invoke('save_backup_config', { input }),
+  testBackupCloudConnection: (input) =>
+    invoke('test_backup_cloud_connection', { input }),
+  triggerManualCloudBackup: () => invoke('trigger_manual_cloud_backup', {}),
 
   onDataImported: (handler) => {
     return listen('data-imported', (event) =>

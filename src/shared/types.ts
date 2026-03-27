@@ -138,3 +138,64 @@ export interface AutoExportConfig {
   /** “每分”模式下的执行间隔（单位：分钟），默认 60 */
   intervalMinutes?: number;
 }
+
+export interface BackupRunStatus {
+  at?: string | null;
+  result?: string | null;
+  target?: string | null;
+  file?: string | null;
+  error?: string | null;
+}
+
+export interface BackupConfig {
+  targetMode: 'local' | 'cos';
+  autoExportEnabled: boolean;
+  autoExportFrequency: AutoExportFrequency | 'daily' | 'weekly' | 'monthly';
+  autoExportDirectory: string;
+  exportFormat: ExportOptions['format'];
+  autoExportTimeOfDay: string;
+  autoExportDayOfWeek: number;
+  autoExportDayOfMonth: number;
+  autoExportIntervalMinutes: number;
+  retentionCount: number;
+  cloudProvider: string;
+  endpoint: string;
+  bucket: string;
+  region: string;
+  pathPrefix: string;
+  secretIdMasked?: string | null;
+  hasSecretKey: boolean;
+  hasArchivePassword: boolean;
+  failureNotificationCooldownMinutes: number;
+  lastManualRun: BackupRunStatus;
+  lastAutoRun: BackupRunStatus;
+}
+
+export interface SaveBackupConfigInput {
+  targetMode?: 'local' | 'cos';
+  retentionCount?: number;
+  endpoint?: string;
+  bucket?: string;
+  region?: string;
+  pathPrefix?: string;
+  secretId?: string;
+  secretKey?: string;
+  exportDefaultPassword?: string;
+}
+
+export interface BackupCloudTestInput {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  pathPrefix?: string;
+  secretId?: string;
+  secretKey?: string;
+  exportDefaultPassword?: string;
+}
+
+export interface BackupCloudTestResult {
+  success: boolean;
+  category?: string | null;
+  message: string;
+  warning?: string | null;
+}

@@ -2,9 +2,9 @@
 //!
 //! 封装 SQLite 数据库操作
 
-use rusqlite::{Connection, Result};
+use rusqlite::{Connection, OptionalExtension, Result};
+use std::collections::HashSet;
 use std::path::Path;
-use tauri::{AppHandle, Manager};
 
 /// 数据库服务
 pub struct DatabaseService {
@@ -292,7 +292,7 @@ impl DatabaseService {
     /// 获取所有分组
     pub fn get_groups(&self) -> Result<Vec<crate::models::group::Group>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM groups ORDER BY sort_order, name")
+        let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM groups ORDER BY COALESCE(sort_order, 2147483647), COALESCE(updated_at, ''), id")
             .map_err(|e| e.to_string())?;
 
         let iter = stmt
@@ -389,11 +389,21 @@ impl DatabaseService {
         Ok(())
     }
 
+    /// 拖拽重排分组（支持跨层级，源/目标父级压实）
+    pub fn reorder_group(
+        &self,
+        drag_id: i64,
+        new_parent_id: Option<i64>,
+        insert_index: usize,
+    ) -> Result<(), String> {
+        self.reorder_tree_node("groups", drag_id, new_parent_id, insert_index)
+    }
+
     // --- Note Groups ---
 
     pub fn get_note_groups(&self) -> Result<Vec<crate::models::note::SecureRecordGroup>, String> {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
-        let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM secure_record_groups ORDER BY sort_order, name")
+        let mut stmt = conn.prepare("SELECT id, name, parent_id, icon, color, sort_order, created_at, updated_at FROM secure_record_groups ORDER BY COALESCE(sort_order, 2147483647), COALESCE(updated_at, ''), id")
             .map_err(|e| e.to_string())?;
         let iter = stmt
             .query_map([], Self::map_note_group_row)
@@ -470,6 +480,157 @@ impl DatabaseService {
         let conn = self.get_connection().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM secure_record_groups WHERE id = ?", [id])
             .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// 拖拽重排便签分组（支持跨层级，源/目标父级压实）
+    pub fn reorder_note_group(
+        &self,
+        drag_id: i64,
+        new_parent_id: Option<i64>,
+        insert_index: usize,
+    ) -> Result<(), String> {
+        self.reorder_tree_node("secure_record_groups", drag_id, new_parent_id, insert_index)
+    }
+
+    fn reorder_tree_node(
+        &self,
+        table: &str,
+        drag_id: i64,
+        new_parent_id: Option<i64>,
+        insert_index: usize,
+    ) -> Result<(), String> {
+        if Some(drag_id) == new_parent_id {
+            return Err("不能移动到自身节点".to_string());
+        }
+
+        let mut conn = self.get_connection().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        let current_parent = self
+            .get_parent_id(&tx, table, drag_id)?
+            .ok_or_else(|| "分组不存在".to_string())?;
+
+        if let Some(target_parent_id) = new_parent_id {
+            if self.is_descendant_in_table(&tx, table, drag_id, target_parent_id)? {
+                return Err("不能移动到自己的子节点下".to_string());
+            }
+        }
+
+        // 计算目标父级最终顺序（排除拖拽节点后插入）
+        let mut target_ids =
+            self.list_sibling_ids(&tx, table, new_parent_id, Some(drag_id))?;
+        let clamped_insert_index = insert_index.min(target_ids.len());
+        target_ids.insert(clamped_insert_index, drag_id);
+
+        let update_parent_sql =
+            format!("UPDATE {table} SET parent_id = ?1, updated_at = datetime('now') WHERE id = ?2");
+        tx.execute(&update_parent_sql, (new_parent_id, drag_id))
+            .map_err(|e| e.to_string())?;
+
+        self.rewrite_sort_orders(&tx, table, &target_ids)?;
+
+        // 仅跨父级时需要同时压实源父级
+        if current_parent != new_parent_id {
+            let source_ids =
+                self.list_sibling_ids(&tx, table, current_parent, Some(drag_id))?;
+            self.rewrite_sort_orders(&tx, table, &source_ids)?;
+        }
+
+        tx.commit().map_err(|e| e.to_string())
+    }
+
+    fn get_parent_id(
+        &self,
+        tx: &rusqlite::Transaction<'_>,
+        table: &str,
+        id: i64,
+    ) -> Result<Option<Option<i64>>, String> {
+        let sql = format!("SELECT parent_id FROM {table} WHERE id = ?1");
+        tx.query_row(&sql, [id], |row| row.get::<_, Option<i64>>(0))
+            .optional()
+            .map_err(|e| e.to_string())
+    }
+
+    fn is_descendant_in_table(
+        &self,
+        tx: &rusqlite::Transaction<'_>,
+        table: &str,
+        ancestor_id: i64,
+        candidate_parent_id: i64,
+    ) -> Result<bool, String> {
+        let mut current_id = Some(candidate_parent_id);
+        let mut visited = HashSet::new();
+
+        while let Some(id) = current_id {
+            if id == ancestor_id {
+                return Ok(true);
+            }
+            if !visited.insert(id) {
+                return Err("分组层级存在循环".to_string());
+            }
+            current_id = self
+                .get_parent_id(tx, table, id)?
+                .ok_or_else(|| "目标父分组不存在".to_string())?;
+        }
+        Ok(false)
+    }
+
+    fn list_sibling_ids(
+        &self,
+        tx: &rusqlite::Transaction<'_>,
+        table: &str,
+        parent_id: Option<i64>,
+        exclude_id: Option<i64>,
+    ) -> Result<Vec<i64>, String> {
+        let sql = if exclude_id.is_some() {
+            format!(
+                "SELECT id FROM {table}
+                 WHERE ((?1 IS NULL AND parent_id IS NULL) OR parent_id = ?1)
+                   AND id != ?2
+                 ORDER BY COALESCE(sort_order, 2147483647), COALESCE(updated_at, ''), id"
+            )
+        } else {
+            format!(
+                "SELECT id FROM {table}
+                 WHERE ((?1 IS NULL AND parent_id IS NULL) OR parent_id = ?1)
+                 ORDER BY COALESCE(sort_order, 2147483647), COALESCE(updated_at, ''), id"
+            )
+        };
+
+        let mut stmt = tx.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut ids = Vec::new();
+        if let Some(exclude) = exclude_id {
+            let rows = stmt
+                .query_map((parent_id, exclude), |row| row.get::<_, i64>(0))
+                .map_err(|e| e.to_string())?;
+            for row in rows {
+                ids.push(row.map_err(|e| e.to_string())?);
+            }
+        } else {
+            let rows = stmt
+                .query_map([parent_id], |row| row.get::<_, i64>(0))
+                .map_err(|e| e.to_string())?;
+            for row in rows {
+                ids.push(row.map_err(|e| e.to_string())?);
+            }
+        }
+        Ok(ids)
+    }
+
+    fn rewrite_sort_orders(
+        &self,
+        tx: &rusqlite::Transaction<'_>,
+        table: &str,
+        ids: &[i64],
+    ) -> Result<(), String> {
+        let sql = format!(
+            "UPDATE {table} SET sort_order = ?1, updated_at = datetime('now') WHERE id = ?2"
+        );
+        for (index, id) in ids.iter().enumerate() {
+            tx.execute(&sql, (index as i64, id))
+                .map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 
@@ -1096,5 +1257,311 @@ mod tests {
         db_service.delete_group(id).unwrap();
         let deleted = db_service.get_group(id).unwrap();
         assert!(deleted.is_none());
+    }
+
+    #[test]
+    fn test_reorder_group_same_parent() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_reorder_group_same_parent.db");
+        let db = DatabaseService::new(db_path.to_str().unwrap());
+        db.initialize().unwrap();
+
+        let g1 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "g1".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let g2 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "g2".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(1),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let g3 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "g3".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(2),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+
+        db.reorder_group(g1, None, 2).unwrap();
+
+        let ordered_ids: Vec<i64> = db
+            .get_groups()
+            .unwrap()
+            .into_iter()
+            .filter(|g| g.parent_id.is_none())
+            .map(|g| g.id.unwrap())
+            .collect();
+        assert_eq!(ordered_ids, vec![g2, g3, g1]);
+    }
+
+    #[test]
+    fn test_reorder_group_cross_parent_compacts_both_sides() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_reorder_group_cross_parent.db");
+        let db = DatabaseService::new(db_path.to_str().unwrap());
+        db.initialize().unwrap();
+
+        let parent_a = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "A".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let parent_b = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "B".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(1),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let a1 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "a1".to_string(),
+                parent_id: Some(parent_a),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let a2 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "a2".to_string(),
+                parent_id: Some(parent_a),
+                icon: None,
+                color: None,
+                sort_order: Some(1),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let b1 = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "b1".to_string(),
+                parent_id: Some(parent_b),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+
+        db.reorder_group(a2, Some(parent_b), 1).unwrap();
+
+        let groups = db.get_groups().unwrap();
+        let a_children: Vec<i64> = groups
+            .iter()
+            .filter(|g| g.parent_id == Some(parent_a))
+            .map(|g| g.id.unwrap())
+            .collect();
+        let b_children: Vec<i64> = groups
+            .iter()
+            .filter(|g| g.parent_id == Some(parent_b))
+            .map(|g| g.id.unwrap())
+            .collect();
+        assert_eq!(a_children, vec![a1]);
+        assert_eq!(b_children, vec![b1, a2]);
+        let moved = db.get_group(a2).unwrap().unwrap();
+        assert_eq!(moved.sort_order, Some(1));
+    }
+
+    #[test]
+    fn test_reorder_group_rejects_cycle_and_keeps_state() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_reorder_group_cycle.db");
+        let db = DatabaseService::new(db_path.to_str().unwrap());
+        db.initialize().unwrap();
+
+        let root = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "root".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let child = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "child".to_string(),
+                parent_id: Some(root),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let grandchild = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "grandchild".to_string(),
+                parent_id: Some(child),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+
+        let err = db.reorder_group(root, Some(grandchild), 0).unwrap_err();
+        assert!(err.contains("子节点"));
+        let root_after = db.get_group(root).unwrap().unwrap();
+        assert_eq!(root_after.parent_id, None);
+    }
+
+    #[test]
+    fn test_reorder_group_error_does_not_mutate_state() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_reorder_group_rollback.db");
+        let db = DatabaseService::new(db_path.to_str().unwrap());
+        db.initialize().unwrap();
+
+        let child = db
+            .add_group(&crate::models::group::Group {
+                id: None,
+                name: "child".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+
+        let before = db.get_group(child).unwrap().unwrap();
+        let err = db.reorder_group(child, Some(999_999), 0).unwrap_err();
+        assert!(err.contains("不存在"));
+        let after = db.get_group(child).unwrap().unwrap();
+        assert_eq!(before.parent_id, after.parent_id);
+        assert_eq!(before.sort_order, after.sort_order);
+    }
+
+    #[test]
+    fn test_reorder_note_group_cross_parent_compacts_both_sides() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_reorder_note_group_cross_parent.db");
+        let db = DatabaseService::new(db_path.to_str().unwrap());
+        db.initialize().unwrap();
+
+        let parent_a = db
+            .add_note_group(&crate::models::note::SecureRecordGroup {
+                id: None,
+                name: "A".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let parent_b = db
+            .add_note_group(&crate::models::note::SecureRecordGroup {
+                id: None,
+                name: "B".to_string(),
+                parent_id: None,
+                icon: None,
+                color: None,
+                sort_order: Some(1),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let a1 = db
+            .add_note_group(&crate::models::note::SecureRecordGroup {
+                id: None,
+                name: "a1".to_string(),
+                parent_id: Some(parent_a),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let a2 = db
+            .add_note_group(&crate::models::note::SecureRecordGroup {
+                id: None,
+                name: "a2".to_string(),
+                parent_id: Some(parent_a),
+                icon: None,
+                color: None,
+                sort_order: Some(1),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+        let b1 = db
+            .add_note_group(&crate::models::note::SecureRecordGroup {
+                id: None,
+                name: "b1".to_string(),
+                parent_id: Some(parent_b),
+                icon: None,
+                color: None,
+                sort_order: Some(0),
+                created_at: None,
+                updated_at: None,
+            })
+            .unwrap();
+
+        db.reorder_note_group(a2, Some(parent_b), 1).unwrap();
+
+        let groups = db.get_note_groups().unwrap();
+        let a_children: Vec<i64> = groups
+            .iter()
+            .filter(|g| g.parent_id == Some(parent_a))
+            .map(|g| g.id.unwrap())
+            .collect();
+        let b_children: Vec<i64> = groups
+            .iter()
+            .filter(|g| g.parent_id == Some(parent_b))
+            .map(|g| g.id.unwrap())
+            .collect();
+        assert_eq!(a_children, vec![a1]);
+        assert_eq!(b_children, vec![b1, a2]);
     }
 }

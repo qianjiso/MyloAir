@@ -2,9 +2,18 @@
 
 use crate::models::{Group, GroupWithChildren};
 use crate::AppState;
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use tauri::State;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReorderGroupInput {
+    pub drag_id: i64,
+    pub new_parent_id: Option<i64>,
+    pub insert_index: usize,
+}
 
 /// 获取所有分组
 #[tauri::command]
@@ -101,7 +110,7 @@ pub async fn update_group(
     log::info!("[update_group] 手动解析结果: name={:?}, parent_id={:?}, sort_order={:?}, color={:?}", 
         name, parent_id, sort_order, color);
     
-    let mut parsed_group = Group {
+    let parsed_group = Group {
         id: Some(id),
         name,
         parent_id,
@@ -132,6 +141,21 @@ pub async fn update_group(
 pub async fn delete_group(state: State<'_, AppState>, id: i64) -> Result<Value, String> {
     log::info!("delete_group called: id={}", id);
     state.db.delete_group(id).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "success": true
+    }))
+}
+
+/// 拖拽重排分组（支持跨层级）
+#[tauri::command]
+pub async fn reorder_group(
+    state: State<'_, AppState>,
+    input: ReorderGroupInput,
+) -> Result<Value, String> {
+    state
+        .db
+        .reorder_group(input.drag_id, input.new_parent_id, input.insert_index)
+        .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "success": true
     }))

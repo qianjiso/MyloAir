@@ -102,6 +102,7 @@ pub fn run() {
             commands::groups::add_group,
             commands::groups::update_group,
             commands::groups::delete_group,
+            commands::groups::reorder_group,
             // 窗口管理
             commands::window::minimize_window,
             commands::window::toggle_maximize_window,
@@ -123,6 +124,7 @@ pub fn run() {
             commands::notes::add_note_group,
             commands::notes::update_note_group,
             commands::notes::delete_note_group,
+            commands::notes::reorder_note_group,
             commands::notes::get_notes,
             commands::notes::get_note,
             commands::notes::add_note,

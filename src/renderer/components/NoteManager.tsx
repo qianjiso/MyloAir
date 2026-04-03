@@ -70,13 +70,9 @@ const NoteManager: React.FC<{
   const loadNotes = useCallback(async (groupId?: number) => {
     setLoading(true);
     try {
-      console.log('[NoteManager] Loading notes for groupId:', groupId);
       const res = await notesService.listNotes(groupId);
-      console.log('[NoteManager] Notes loaded:', res?.length || 0, 'items');
-      console.log('[NoteManager] First note (if any):', res?.[0]);
       setNotes(res || []);
-    } catch (e) {
-      console.error('[NoteManager] Failed to load notes:', e);
+    } catch {
       message.error('加载便笺失败');
     } finally {
       setLoading(false);
@@ -181,7 +177,6 @@ const NoteManager: React.FC<{
   };
 
   const handleSubmit = async (values: any) => {
-    console.log('[NoteManager] handleSubmit values:', values);
     try {
       // 转换字段名：content_ciphertext -> content
       const noteData = {
@@ -189,8 +184,6 @@ const NoteManager: React.FC<{
         content: values.content_ciphertext,
       };
       delete (noteData as any).content_ciphertext;
-
-      console.log('[NoteManager] 提交数据:', noteData);
 
       if (editingNote && editingNote.id) {
         const res = await notesService.updateNote(editingNote.id, noteData);
@@ -203,8 +196,7 @@ const NoteManager: React.FC<{
       }
       setEditVisible(false);
       loadNotes(selectedGroupId);
-    } catch (e) {
-      console.error('[NoteManager] 保存失败:', e);
+    } catch {
       message.error(editingNote ? '更新失败' : '添加失败');
     }
   };
@@ -272,20 +264,8 @@ const NoteManager: React.FC<{
           <Button
             type="link"
             onClick={() => {
-              console.log('[ViewNote] ========== 查看便签 ==========');
-              console.log(
-                '[ViewNote] Record:',
-                JSON.stringify(record, null, 2)
-              );
-              console.log('[ViewNote] record.content:', record.content);
-              console.log(
-                '[ViewNote] record.content_ciphertext:',
-                (record as any).content_ciphertext
-              );
-              console.log('[ViewNote] All keys:', Object.keys(record));
               // 后端返回的是解密后的 content 字段
               const content = record.content || '';
-              console.log('[ViewNote] Content to show:', content);
               setViewText(content);
               setSelectedLineSet(new Set());
               setViewVisible(true);

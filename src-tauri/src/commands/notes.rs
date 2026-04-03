@@ -3,6 +3,7 @@
 use crate::models::{SecureRecord, SecureRecordGroup};
 use crate::AppState;
 use tauri::State;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -15,6 +16,14 @@ pub struct SecureRecordGroupWithChildren {
     pub color: Option<String>,
     pub sort_order: Option<i32>,
     pub children: Vec<SecureRecordGroupWithChildren>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReorderNoteGroupInput {
+    pub drag_id: i64,
+    pub new_parent_id: Option<i64>,
+    pub insert_index: usize,
 }
 
 /// 辅助函数：解密笔记内容
@@ -135,6 +144,18 @@ pub async fn update_note_group(state: State<'_, AppState>, id: i64, mut group: S
 #[tauri::command]
 pub async fn delete_note_group(state: State<'_, AppState>, id: i64) -> Result<Value, String> {
     state.db.delete_note_group(id).map_err(|e| e.to_string())?;
+    Ok(json!({ "success": true }))
+}
+
+#[tauri::command]
+pub async fn reorder_note_group(
+    state: State<'_, AppState>,
+    input: ReorderNoteGroupInput,
+) -> Result<Value, String> {
+    state
+        .db
+        .reorder_note_group(input.drag_id, input.new_parent_id, input.insert_index)
+        .map_err(|e| e.to_string())?;
     Ok(json!({ "success": true }))
 }
 

@@ -85,6 +85,7 @@ const App: React.FC = () => {
     createGroup,
     updateGroup,
     removeGroup,
+    setGroups,
     setGroupTree,
   } = useGroups();
   const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>();
@@ -741,8 +742,6 @@ const App: React.FC = () => {
                       window.electronAPI.searchPasswords(value),
                       window.electronAPI.searchNotesTitle(value),
                     ]);
-                    console.log('🔍 搜索结果 - 密码:', pw);
-                    console.log('🔍 第一条密码数据:', pw && pw[0]);
                     setGlobalSearchPasswords(pw || []);
                     setGlobalSearchNotes(nt || []);
                     setSelectedPwIndex(0);
@@ -802,20 +801,19 @@ const App: React.FC = () => {
               </div>
               {currentModule === 'password' ? (
                 <GroupTree
-                  groups={groups}
                   groupTree={groupTree}
                   selectedGroupId={selectedGroupId}
                   expandedKeys={expandedKeys}
                   onExpanded={(keys) => setExpandedKeys(keys as string[])}
                   onSelect={handleGroupSelect}
                   setGroupTree={(tree) => setGroupTree(tree)}
+                  setGroups={(list) => setGroups(list)}
                   onEditGroup={handleEditGroup}
                   onDeleteGroup={handleDeleteGroup}
                   treeKey={treeKey}
                 />
               ) : (
                 <NoteGroupTree
-                  groups={noteGroups as any}
                   groupTree={noteGroupTree as any}
                   selectedGroupId={selectedNoteGroupId}
                   onSelect={handleNoteGroupSelect}

@@ -94,6 +94,11 @@ export interface TauriAPI {
   addGroup(group: Group): Promise<{ success: boolean; id: number }>;
   updateGroup(id: number, group: Group): Promise<{ success: boolean }>;
   deleteGroup(id: number): Promise<{ success: boolean }>;
+  reorderGroup(input: {
+    dragId: number;
+    newParentId?: number | null;
+    insertIndex: number;
+  }): Promise<{ success: boolean; error?: string }>;
 
   // 用户设置
   getUserSettings(category?: string): Promise<UserSetting[]>;
@@ -233,6 +238,11 @@ export interface TauriAPI {
     group: SecureRecordGroup
   ): Promise<{ success: boolean; error?: string }>;
   deleteNoteGroup(id: number): Promise<{ success: boolean; error?: string }>;
+  reorderNoteGroup(input: {
+    dragId: number;
+    newParentId?: number | null;
+    insertIndex: number;
+  }): Promise<{ success: boolean; error?: string }>;
   getNotes(groupId?: number): Promise<SecureRecord[]>;
   getNote(id: number): Promise<SecureRecord | null>;
   addNote(
@@ -305,6 +315,7 @@ const realTauriAPI: TauriAPI = {
   addGroup: (group) => invoke('add_group', { group }),
   updateGroup: (id, group) => invoke('update_group', { id, group }),
   deleteGroup: (id) => invoke('delete_group', { id }),
+  reorderGroup: (input) => invoke('reorder_group', { input }),
 
   // 用户设置（TODO: 实现）
   getUserSettings: (category) => invoke('get_user_settings', { category }),
@@ -370,6 +381,7 @@ const realTauriAPI: TauriAPI = {
   addNoteGroup: (group) => invoke('add_note_group', { group }),
   updateNoteGroup: (id, group) => invoke('update_note_group', { id, group }),
   deleteNoteGroup: (id) => invoke('delete_note_group', { id }),
+  reorderNoteGroup: (input) => invoke('reorder_note_group', { input }),
   getNotes: (groupId) => invoke('get_notes', { groupId }),
   getNote: (id) => invoke('get_note', { id }),
   addNote: (note) => invoke('add_note', { note }),
@@ -424,7 +436,6 @@ export function initElectronAPICompat(): void {
 
   if (!isTauri) {
     console.warn('[TauriAPI] Running in browser mode. Using Mock API.');
-    console.log('[TauriAPI] Mock API:', tauriAPI);
   }
 }
 

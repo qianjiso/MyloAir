@@ -33,6 +33,15 @@ const store = {
 let idCounter = 1;
 const nextId = () => idCounter++;
 
+const compactSortOrders = (items: any[], parentId: number | null) => {
+  const siblings = items
+    .filter((item) => (item.parent_id ?? null) === parentId)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  siblings.forEach((item, index) => {
+    item.sort_order = index;
+  });
+};
+
 const electronAPI = {
   // 密码管理相关
   getPasswords: (groupId?: number) => {
@@ -49,7 +58,6 @@ const electronAPI = {
   addPassword: (password: any) => {
     const newPw = { ...password, id: nextId(), created_at: new Date().toISOString() };
     store.passwords.push(newPw);
-    console.log('[Mock] Added password:', newPw);
     return Promise.resolve({ success: true, id: newPw.id });
   },
   updatePassword: (id: number, password: any) => {
@@ -85,7 +93,6 @@ const electronAPI = {
   
   // 分组管理
   getGroups: () => {
-    console.log('[Mock] Getting groups:', store.groups);
     return Promise.resolve([...store.groups]); 
   },
   getGroupTree: (_parentId?: number) => {
@@ -99,7 +106,6 @@ const electronAPI = {
   addGroup: (group: any) => {
     const newGroup = { ...group, id: nextId(), created_at: new Date().toISOString(), children: [] };
     store.groups.push(newGroup);
-    console.log('[Mock] Added group:', newGroup, 'Total groups:', store.groups.length);
     return Promise.resolve({ success: true, id: newGroup.id });
   },
   updateGroup: (id: number, group: any) => {
@@ -117,6 +123,25 @@ const electronAPI = {
       return Promise.resolve({ success: true });
     }
     return Promise.resolve({ success: false });
+  },
+  reorderGroup: (input: { dragId: number; newParentId?: number | null; insertIndex: number }) => {
+    const drag = store.groups.find(g => g.id === input.dragId);
+    if (!drag) return Promise.resolve({ success: false, error: 'Not found' });
+    const sourceParent = drag.parent_id ?? null;
+    const targetParent = input.newParentId ?? null;
+    const siblings = store.groups
+      .filter(g => (g.parent_id ?? null) === targetParent && g.id !== drag.id)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const insertIndex = Math.max(0, Math.min(input.insertIndex, siblings.length));
+    siblings.splice(insertIndex, 0, drag);
+    drag.parent_id = targetParent;
+    siblings.forEach((group, index) => {
+      group.sort_order = index;
+    });
+    if (sourceParent !== targetParent) {
+      compactSortOrders(store.groups, sourceParent);
+    }
+    return Promise.resolve({ success: true });
   },
   
   // 用户设置
@@ -247,6 +272,25 @@ const electronAPI = {
   },
   updateNoteGroup: (id: number, group: any) => { return Promise.resolve({ success: true }); },
   deleteNoteGroup: (id: number) => { return Promise.resolve({ success: true }); },
+  reorderNoteGroup: (input: { dragId: number; newParentId?: number | null; insertIndex: number }) => {
+    const drag = store.noteGroups.find(g => g.id === input.dragId);
+    if (!drag) return Promise.resolve({ success: false, error: 'Not found' });
+    const sourceParent = drag.parent_id ?? null;
+    const targetParent = input.newParentId ?? null;
+    const siblings = store.noteGroups
+      .filter(g => (g.parent_id ?? null) === targetParent && g.id !== drag.id)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const insertIndex = Math.max(0, Math.min(input.insertIndex, siblings.length));
+    siblings.splice(insertIndex, 0, drag);
+    drag.parent_id = targetParent;
+    siblings.forEach((group, index) => {
+      group.sort_order = index;
+    });
+    if (sourceParent !== targetParent) {
+      compactSortOrders(store.noteGroups, sourceParent);
+    }
+    return Promise.resolve({ success: true });
+  },
   getNotes: (groupId?: number) => {
      return Promise.resolve(
       groupId 

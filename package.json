@@ -1,6 +1,6 @@
 {
   "name": "myloair",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一个安全的跨平台密码管理应用",
   "scripts": {
     "dev": "npm run dev:renderer",
